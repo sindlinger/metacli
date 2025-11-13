@@ -1,0 +1,21 @@
+{
+  "last_project": "main-terminal",
+  "projects": {
+    "main-terminal": {
+      "project": "main-terminal",
+      "libs": "C:\\mql5\\MQL5\\Libraries",
+      "metaeditor": "C:\\mql5\\metaeditor64.exe",
+      "terminal": "C:\\mql5\\terminal64.exe",
+      "data_dir": "C:\\mql5\\MQL5",
+      "updated_at": "2025-11-13T19:29:15",
+      "created_at": "2025-11-13T17:51:15",
+      "defaults": {
+        "symbol": "EURUSD",
+        "period": "H1",
+        "subwindow": 1,
+        "portable": true,
+        "profile": "Default"
+      }
+    }
+  }
+}

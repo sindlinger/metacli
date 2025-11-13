@@ -40,3 +40,20 @@ python3 mtcli/mtcli.py mt status --repair
 
 - Comandos `mt attach/detach/apply` operam via listener quando ativo; senão, geram INI + `cmd.txt` e iniciam o Terminal.
 - Sempre retornam um tail de logs padronizado.
+# MTCLI
+## I18N (Language)
+
+- Current language is stored in `tools/mtcli_config.json` under key `lang`.
+- Switch language at runtime:
+  - Show: `mtcli lang show`
+  - Set English: `mtcli lang set --to en`
+  - Set Portuguese: `mtcli lang set --to pt`
+
+### Developer guidelines
+
+- When adding messages, never print raw strings directly.
+- Use the translation helper `tr(key, **kwargs)` and define the key in both dictionaries:
+  - `I18N['en'][key] = '…'`
+  - `I18N['pt'][key] = '…'`
+- Prefer concise, action‑oriented messages. Keep placeholders named and explicit (e.g., `{path}`, `{limit}`, `{rc}`).
+- If a key is missing, the CLI falls back to English.
