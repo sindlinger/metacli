@@ -1,0 +1,4 @@
+__pycache__/
+logs/
+mtcli_backups/
+*.log

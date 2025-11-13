@@ -1,0 +1,15 @@
+[project]
+name = "gen2-mtcli"
+version = "0.1.0"
+description = "MetaTrader CLI + automation pack for Gen2Alglib"
+authors = [{name = "Gen2Alglib"}]
+requires-python = ">=3.9"
+readme = "README.md"
+license = {text = "Proprietary"}
+dependencies = []
+
+[project.scripts]
+mtcli = "mtcli:main"
+
+[tool.setuptools]
+py-modules = ["mtcli"]

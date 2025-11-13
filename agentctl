@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# agentctl — wrapper de alto nível para orquestrar mtcli e slash-mql5
+# Uso: agentctl <domínio> <ação> [args...]
+# domínios: listener | indicator | expert | tester | doc | mtcli | help
+
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="${BASE_DIR}/.env.mt"
+[ -f "$ENV_FILE" ] && source "$ENV_FILE"
+
+MTCLI_BIN="${MTCLI_BIN:-mtcli}"
+DOC_CLI="${DOC_CLI:-slash-mql5}"
+DEFAULT_SYMBOL="${DEFAULT_SYMBOL:-EURUSD}"
+DEFAULT_TF="${DEFAULT_TF:-H1}"
+DEFAULT_SUBWIN="${DEFAULT_SUBWIN:-1}"
+
+log() { echo "[$(date +%H:%M:%S)] $*"; }
+alog="${BASE_DIR}/../logs/agentctl_$(date +%Y%m%d_%H%M%S).log"
+teeout() { tee -a "$alog"; }
+
+help() {
+  cat <<EOF
+agentctl — comandos:
+  listener ensure <symbol> <tf>      # instala e roda o CommandListener
+  indicator full <file.mq5|.ex5> [--symbol S --tf TF --subwin N]
+  indicator install <file>           # só instala/compila
+  indicator attach <name> [--symbol S --tf TF --subwin N]
+  indicator detach <name> [--symbol S --tf TF --subwin N]
+  expert   full <file.mq5|.ex5> [--symbol S --tf TF --tpl NOME | --tpl-src /caminho.tpl]
+  expert   install <file>
+  expert   attach <relpath> [--symbol S --tf TF --tpl NOME|--tpl-src CAMINHO]
+  expert   detach [--symbol S --tf TF]
+  tester   smoke <rel_ea> <symbol> <tf> [--visual ...flags mtcli tester run]
+  doc      pull|search <q>|open <id>
+  mtcli    ...                       # repassa comandos direto p/ mtcli
+  help
+EOF
+}
+
+dom="${1:-help}"; shift || true
+
+case "$dom" in
+  help|"")
+    help
+    ;;
+  listener)
+    act="${1:-}"; shift || true
+    sym="${1:-$DEFAULT_SYMBOL}"; tf="${2:-$DEFAULT_TF}"
+    if [[ "$act" == "ensure" ]]; then
+      log "Garantindo listener (install/run) em $sym/$tf" | teeout
+      $MTCLI_BIN listener install | tee -a "$alog" || true
+      $MTCLI_BIN listener run --symbol "$sym" --period "$tf" | tee -a "$alog"
+    else
+      echo "Uso: agentctl listener ensure <symbol> <tf>"; exit 1
+    fi
+    ;;
+  indicator)
+    act="${1:-}"; shift || true
+    case "$act" in
+      full)
+        file="${1:?Uso: agentctl indicator full <file> [--symbol S --tf TF --subwin N]}"; shift || true
+        sym="$DEFAULT_SYMBOL"; tf="$DEFAULT_TF"; sub="$DEFAULT_SUBWIN"
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --symbol) sym="$2"; shift 2;;
+            --tf) tf="$2"; shift 2;;
+            --subwin) sub="$2"; shift 2;;
+            *) echo "Arg desconhecido: $1"; exit 1;;
+          esac
+        done
+        name="$(basename "$file")"; name="${name%.mq5}"; name="${name%.ex5}"
+        log "INSTALL indicator $file" | teeout
+        $MTCLI_BIN install indicator --file "$file" | tee -a "$alog"
+        log "ATTACH indicator $name em $sym/$tf subwin $sub" | teeout
+        $MTCLI_BIN chart indicator attach --symbol "$sym" --period "$tf" --indicator "$name" --subwindow "$sub" | tee -a "$alog"
+        ;;
+      install)
+        file="${1:?Uso: agentctl indicator install <file>}"
+        log "INSTALL indicator $file" | teeout
+        $MTCLI_BIN install indicator --file "$file" | tee -a "$alog"
+        ;;
+      attach)
+        name="${1:?Uso: agentctl indicator attach <name> [--symbol S --tf TF --subwin N]}"; shift || true
+        sym="$DEFAULT_SYMBOL"; tf="$DEFAULT_TF"; sub="$DEFAULT_SUBWIN"
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --symbol) sym="$2"; shift 2;;
+            --tf) tf="$2"; shift 2;;
+            --subwin) sub="$2"; shift 2;;
+            *) echo "Arg desconhecido: $1"; exit 1;;
+          esac
+        done
+        $MTCLI_BIN chart indicator attach --symbol "$sym" --period "$tf" --indicator "$name" --subwindow "$sub" | tee -a "$alog"
+        ;;
+      detach)
+        name="${1:?Uso: agentctl indicator detach <name> [--symbol S --tf TF --subwin N]}"; shift || true
+        sym="$DEFAULT_SYMBOL"; tf="$DEFAULT_TF"; sub="$DEFAULT_SUBWIN"
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --symbol) sym="$2"; shift 2;;
+            --tf) tf="$2"; shift 2;;
+            --subwin) sub="$2"; shift 2;;
+            *) echo "Arg desconhecido: $1"; exit 1;;
+          esac
+        done
+        $MTCLI_BIN chart indicator detach --symbol "$sym" --period "$tf" --indicator "$name" --subwindow "$sub" | tee -a "$alog"
+        ;;
+      *)
+        echo "Uso: agentctl indicator full|install|attach|detach ..."; exit 1;;
+    esac
+    ;;
+  expert)
+    act="${1:-}"; shift || true
+    case "$act" in
+      full)
+        file="${1:?Uso: agentctl expert full <file> [--symbol S --tf TF --tpl NOME|--tpl-src CAMINHO]}"; shift || true
+        sym="$DEFAULT_SYMBOL"; tf="$DEFAULT_TF"; tpl=""; tplsrc=""
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --symbol) sym="$2"; shift 2;;
+            --tf) tf="$2"; shift 2;;
+            --tpl) tpl="$2"; shift 2;;
+            --tpl-src) tplsrc="$2"; shift 2;;
+            *) echo "Arg desconhecido: $1"; exit 1;;
+          esac
+        done
+        name="$(basename "$file")"; name="${name%.mq5}"; name="${name%.ex5}"
+        rel="Experts\\${name}"
+        log "INSTALL expert $file" | teeout
+        $MTCLI_BIN install expert --file "$file" | tee -a "$alog"
+        log "ATTACH expert $rel em $sym/$tf (tpl=${tpl:-$tplsrc})" | teeout
+        if [[ -n "$tpl" ]]; then
+          $MTCLI_BIN chart expert attach --symbol "$sym" --period "$tf" --expert "$rel" --template "$tpl" | tee -a "$alog"
+        elif [[ -n "$tplsrc" ]]; then
+          $MTCLI_BIN chart expert attach --symbol "$sym" --period "$tf" --expert "$rel" --template-src "$tplsrc" | tee -a "$alog"
+        else
+          echo "[i] Sem template; pulando attach do EA." | tee -a "$alog"
+        fi
+        ;;
+      install)
+        file="${1:?Uso: agentctl expert install <file>}"
+        log "INSTALL expert $file" | teeout
+        $MTCLI_BIN install expert --file "$file" | tee -a "$alog"
+        ;;
+      attach)
+        rel="${1:?Uso: agentctl expert attach <relpath> [--symbol S --tf TF --tpl NOME|--tpl-src CAMINHO]}"; shift || true
+        sym="$DEFAULT_SYMBOL"; tf="$DEFAULT_TF"; tpl=""; tplsrc=""
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --symbol) sym="$2"; shift 2;;
+            --tf) tf="$2"; shift 2;;
+            --tpl) tpl="$2"; shift 2;;
+            --tpl-src) tplsrc="$2"; shift 2;;
+            *) echo "Arg desconhecido: $1"; exit 1;;
+          esac
+        done
+        if [[ -n "$tpl" ]]; then
+          $MTCLI_BIN chart expert attach --symbol "$sym" --period "$tf" --expert "$rel" --template "$tpl" | tee -a "$alog"
+        elif [[ -n "$tplsrc" ]]; then
+          $MTCLI_BIN chart expert attach --symbol "$sym" --period "$tf" --expert "$rel" --template-src "$tplsrc" | tee -a "$alog"
+        else
+          echo "[!] Falta --tpl ou --tpl-src para anexar EA" | tee -a "$alog"; exit 1
+        fi
+        ;;
+      detach)
+        sym="${1:-$DEFAULT_SYMBOL}"; tf="${2:-$DEFAULT_TF}"
+        $MTCLI_BIN chart expert detach --symbol "$sym" --period "$tf" | tee -a "$alog"
+        ;;
+      *)
+        echo "Uso: agentctl expert full|install|attach|detach ..."; exit 1;;
+    esac
+    ;;
+  tester)
+    act="${1:-}"; shift || true
+    case "$act" in
+      smoke)
+        rel_ea="${1:?RelPath do EA ex.: Examples\\MACD\\MACD Sample}"; sym="${2:-$DEFAULT_SYMBOL}"; tf="${3:-M1}"; shift 3 || true
+        log "TESTER $rel_ea $sym/$tf (smoke)" | teeout
+        $MTCLI_BIN tester run --ea "$rel_ea" --symbol "$sym" --period "$tf" "$@" | tee -a "$alog"
+        ;;
+      *)
+        echo "Uso: agentctl tester smoke <rel_ea> <symbol> <tf> [flags mtcli]"; exit 1;;
+    esac
+    ;;
+  doc)
+    act="${1:-}"; shift || true
+    case "$act" in
+      pull) echo "/doc pull"   | $DOC_CLI | tee -a "$alog" || true ;;
+      search) q="${1:?Uso: agentctl doc search <query>}"; echo "/doc search $q" | $DOC_CLI | tee -a "$alog" ;;
+      open) id="${1:?Uso: agentctl doc open <id>}"; echo "/doc open $id" | $DOC_CLI | tee -a "$alog" ;;
+      *) echo "Uso: agentctl doc pull|search <q>|open <id>"; exit 1;;
+    esac
+    ;;
+  mtcli)
+    # repassa argumentos diretamente
+    $MTCLI_BIN "$@" | tee -a "$alog"
+    ;;
+  *)
+    help; exit 1;;
+esac
+
+echo "[ok] log completo: $alog"
