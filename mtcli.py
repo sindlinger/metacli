@@ -112,6 +112,7 @@ def ensure_wsl_interop() -> bool:
 # ---------------------------------------------------------------------------
 
 LOG_SEPARATOR = "=" * 60
+DETACH_TIMEOUT = float(os.environ.get('MTCLI_DETACH_TIMEOUT', '5.0'))
 
 
 def ensure_dir(path: Path | str):
@@ -234,6 +235,15 @@ def to_windows_path(path: Path | str) -> str:
     return wsl_to_win(Path(path))
 
 
+def _run_detached_command(cmd: list[str], cwd: str | None = None):
+    try:
+        subprocess.run(cmd, timeout=DETACH_TIMEOUT, check=False, cwd=cwd,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        print(f"[warn] comando demorou mais de {DETACH_TIMEOUT}s; prosseguindo em segundo plano")
+    return 0
+
+
 def run_win_exe(exe: Path | str, args: list[str], detach: bool = False):
     exe_path = Path(exe)
     if is_wsl():
@@ -246,10 +256,10 @@ def run_win_exe(exe: Path | str, args: list[str], detach: bool = False):
             arglist = ' '.join([f'"{a}"' for a in args])
             ps_cmd = f"Start-Process -FilePath '{exe_win}' -ArgumentList '{arglist}' -WorkingDirectory '{wd_win}'"
             try:
-                return subprocess.call([ps, '-NoProfile', '-Command', ps_cmd])
+                return _run_detached_command([ps, '-NoProfile', '-Command', ps_cmd])
             except FileNotFoundError:
                 # Fallback: usar 'start' do cmd.exe (com diretório de trabalho)
-                return subprocess.call(['cmd.exe', '/C', 'start', '', '/D', wd_win, exe_win] + args)
+                return _run_detached_command(['cmd.exe', '/C', 'start', '', '/D', wd_win, exe_win] + args)
         cmd = ['cmd.exe', '/C', exe_win] + args
         return subprocess.call(cmd, cwd=str(exe_path.parent))
     else:
@@ -259,9 +269,9 @@ def run_win_exe(exe: Path | str, args: list[str], detach: bool = False):
             arglist = ' '.join([f'"{a}"' for a in args])
             ps_cmd = f"Start-Process -FilePath '{exe_win}' -ArgumentList '{arglist}'"
             try:
-                return subprocess.call([ps, '-NoProfile', '-Command', ps_cmd])
+                return _run_detached_command([ps, '-NoProfile', '-Command', ps_cmd])
             except FileNotFoundError:
-                return subprocess.call(['cmd.exe', '/C', 'start', '', exe_win] + args)
+                return _run_detached_command(['cmd.exe', '/C', 'start', '', exe_win] + args)
         return subprocess.call([str(exe_path)] + args, cwd=str(exe_path.parent))
 
 
@@ -859,7 +869,7 @@ def cmd_listener_run(args):
     print(tr('ini_saved', path=str(ini)))
     extra = [f"/config:{to_windows_path(ini)}"]
     _append_launch_switches(extra, terminal, data_dir, getattr(args, 'portable', None), getattr(args, 'profile', None))
-    if getattr(args, 'show_cmd', False):
+    if should_show_command(args):
         try:
             exe_win = to_windows_path(terminal)
             print(tr('cmd_line', exe=exe_win, args=' '.join(extra)))
@@ -1905,6 +1915,16 @@ def cmd_config(args):
     print(json.dumps(current, indent=2))
     return 0
 
+
+def should_show_command(args) -> bool:
+    if getattr(args, 'show_cmd', False):
+        return True
+    try:
+        cfg = load_config(cli_root_default())
+        return bool(cfg.get('trace_commands'))
+    except Exception:
+        return False
+
 def cmd_fft(args):
     root = cli_root_default()
     try:
@@ -2492,6 +2512,26 @@ def main():
     def _cfg_lang_show(_args):
         print('Language:', get_lang()); return 0
     plsh = pcfg_lang_sub.add_parser('show', help='Show current language'); plsh.set_defaults(func=_cfg_lang_show)
+
+    # config trace (show command lines)
+    pcfg_trace = cfg_sub.add_parser('trace', help='Configurar exibição dos comandos executados (show-cmd)')
+    pcfg_trace_sub = pcfg_trace.add_subparsers(dest='tcmd', required=True)
+    def _cfg_trace_set(args):
+        root = cli_root_default(); cfg = load_config(root)
+        cfg['trace_commands'] = (args.enabled.lower() in ('on','1','true','yes'))
+        save_config(root, cfg)
+        state = 'on' if cfg['trace_commands'] else 'off'
+        print('trace_commands:', state)
+        return 0
+    tset = pcfg_trace_sub.add_parser('set', help='Liga/desliga a exibição automática da linha de comando')
+    tset.add_argument('--enabled', choices=['on','off'], required=True)
+    tset.set_defaults(func=_cfg_trace_set)
+    def _cfg_trace_show(_args):
+        cfg = load_config(cli_root_default())
+        print('trace_commands:', 'on' if cfg.get('trace_commands') else 'off')
+        return 0
+    tshow = pcfg_trace_sub.add_parser('show', help='Mostra o estado atual do trace de comandos')
+    tshow.set_defaults(func=_cfg_trace_show)
     p.set_defaults(func=cmd_config)
 
     p = sub.add_parser('fft', help=argparse.SUPPRESS)
@@ -2536,33 +2576,37 @@ def main():
     pe.set_defaults(func=cmd_install_expert)
 
     # listener
-    plistener = sub.add_parser('listener', help='Gerencia CommandListenerEA e comandos')
-    listener_sub = plistener.add_subparsers(dest='listener_cmd', required=True)
-    li = listener_sub.add_parser('install', help='Instala/compila CommandListenerEA + scripts')
-    li.add_argument('--force', action='store_true', help='Sobrescreve arquivos existentes')
-    add_mt_args(li)
-    li.set_defaults(func=cmd_listener_install)
-    lr = listener_sub.add_parser('run', help='Inicia o terminal com CommandListenerEA')
-    lr.add_argument('--symbol', default='EURUSD')
-    lr.add_argument('--period', default='H1')
-    lr.add_argument('--indicator', help='Anexar indicador automaticamente ao iniciar')
-    lr.add_argument('--indicator-subwindow', type=int, default=0)
-    lr.add_argument('--ini', help='Arquivo .ini para salvar (default: ./listener.ini)')
-    lr.add_argument('--show-cmd', action='store_true', help='Mostrar a linha de comando usada para iniciar o Terminal')
-    g_det = lr.add_mutually_exclusive_group()
-    g_det.add_argument('--detach', dest='detach', action='store_true', default=True, help='Inicia e retorna imediatamente (default)')
-    g_det.add_argument('--wait', dest='detach', action='store_false', help='Aguarda o Terminal encerrar')
-    add_mt_args(lr)
-    lr.set_defaults(func=cmd_listener_run)
+    def _register_listener_commands(parser, legacy=False):
+        listener_sub = parser.add_subparsers(dest='listener_cmd', required=True)
+        li = listener_sub.add_parser('install', help='Instala/compila CommandListenerEA + scripts')
+        li.add_argument('--force', action='store_true', help='Sobrescreve arquivos existentes')
+        add_mt_args(li)
+        li.set_defaults(func=cmd_listener_install)
 
-    ls = listener_sub.add_parser('status', help='Envia PING e mostra logs para conferir se o listener está ativo')
-    add_mt_args(ls)
-    ls.set_defaults(func=cmd_listener_status)
+        lr = listener_sub.add_parser('run', help='Inicia o terminal com CommandListenerEA (não bloqueante por padrão)')
+        lr.add_argument('--symbol', default='EURUSD')
+        lr.add_argument('--period', default='H1')
+        lr.add_argument('--indicator', help='Anexar indicador automaticamente ao iniciar')
+        lr.add_argument('--indicator-subwindow', type=int, default=0)
+        lr.add_argument('--ini', help='Arquivo .ini para salvar (default: ./listener.ini)')
+        lr.add_argument('--show-cmd', action='store_true', help='Mostrar a linha de comando usada para iniciar o Terminal')
+        g_det = lr.add_mutually_exclusive_group()
+        g_det.add_argument('--detach', dest='detach', action='store_true', default=True, help='Inicia e retorna imediatamente (default)')
+        g_det.add_argument('--wait', dest='detach', action='store_false', help='Aguarda o Terminal encerrar')
+        add_mt_args(lr)
+        lr.set_defaults(func=cmd_listener_run)
 
-    le = listener_sub.add_parser('ensure', help='Instala (se preciso) e inicia o listener de forma não-bloqueante')
-    le.add_argument('--force-start', action='store_true', help='Sempre iniciar nova instância do Terminal (ignora PING)')
-    add_mt_args(le)
-    le.set_defaults(func=cmd_listener_ensure)
+        ls = listener_sub.add_parser('status', help='Envia PING e mostra logs do listener')
+        add_mt_args(ls)
+        ls.set_defaults(func=cmd_listener_status)
+
+        le = listener_sub.add_parser('ensure', help='Instala (se preciso) e inicia o listener de forma não-bloqueante')
+        le.add_argument('--force-start', action='store_true', help='Sempre iniciar nova instância do Terminal (ignora PING)')
+        add_mt_args(le)
+        le.set_defaults(func=cmd_listener_ensure)
+
+    plistener = sub.add_parser('listener', help='[LEGACY] use terminal listener')
+    _register_listener_commands(plistener, legacy=True)
 
 
 
@@ -2961,6 +3005,10 @@ def main():
     tct = tch.add_parser('template', help='Apply template')
     tct.add_argument('--template', required=True); tct.add_argument('--symbol'); tct.add_argument('--period'); add_mt_args(tct)
     tct.set_defaults(func=chart_template_apply)
+
+    # terminal listener (novo agrupamento)
+    t_listener = ster.add_parser('listener', help='Instalar/executar CommandListenerEA dentro do projeto atual')
+    _register_listener_commands(t_listener)
 
     # terminal create (replacement of install)
     def _term_create_indicator(args):
