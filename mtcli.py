@@ -359,9 +359,6 @@ def _append_launch_switches(extra: list[str], terminal: Path, data_dir: Path, po
         flag = False
     data_root = _datapath_root_from_data_dir(data_dir)
     if flag:
-        term_root = win_to_wsl(terminal).parent
-        if not _paths_equal(term_root, data_root):
-            raise SystemExit("portable=1 requer que data_dir seja '<terminal_dir>\\MQL5'. Ajuste o projeto ou use --portable 0.")
         extra.append('/portable')
     else:
         extra.append(f"/datapath:{to_windows_path(data_root)}")
