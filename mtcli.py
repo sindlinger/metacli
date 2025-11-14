@@ -859,7 +859,7 @@ def cmd_listener_run(args):
     print(tr('ini_saved', path=str(ini)))
     extra = [f"/config:{to_windows_path(ini)}"]
     _append_launch_switches(extra, terminal, data_dir, getattr(args, 'portable', None), getattr(args, 'profile', None))
-    if getattr(args, 'trace', False):
+    if getattr(args, 'show_cmd', False):
         try:
             exe_win = to_windows_path(terminal)
             print(tr('cmd_line', exe=exe_win, args=' '.join(extra)))
@@ -2548,7 +2548,7 @@ def main():
     lr.add_argument('--indicator', help='Anexar indicador automaticamente ao iniciar')
     lr.add_argument('--indicator-subwindow', type=int, default=0)
     lr.add_argument('--ini', help='Arquivo .ini para salvar (default: ./listener.ini)')
-    lr.add_argument('--trace', action='store_true', help='Mostra a linha de comando usada para iniciar o Terminal')
+    lr.add_argument('--show-cmd', action='store_true', help='Mostrar a linha de comando usada para iniciar o Terminal')
     g_det = lr.add_mutually_exclusive_group()
     g_det.add_argument('--detach', dest='detach', action='store_true', default=True, help='Inicia e retorna imediatamente (default)')
     g_det.add_argument('--wait', dest='detach', action='store_false', help='Aguarda o Terminal encerrar')
