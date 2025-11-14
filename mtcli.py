@@ -332,23 +332,39 @@ def _paths_equal(a: Path, b: Path) -> bool:
         return str(a).replace('\\','/').lower() == str(b).replace('\\','/').lower()
 
 
-def _should_use_portable(terminal: Path, data_dir: Path, portable_pref: bool | None) -> tuple[bool, Path]:
-    root = _datapath_root_from_data_dir(data_dir)
-    term_root = None
+def _normalize_portable_flag(flag) -> bool | None:
+    if flag is None:
+        return None
+    if isinstance(flag, bool):
+        return flag
     try:
-        term_root = win_to_wsl(terminal).parent
+        return bool(int(flag))
     except Exception:
-        term_root = None
-    if portable_pref is not None:
-        want = bool(portable_pref)
-        if want and term_root is not None and not _paths_equal(root, term_root):
-            # não faz sentido usar portable se o usuário apontou outra Data Folder
-            return False, root
-        return want, root
-    # heurística: se Data Folder == <terminal_dir>/MQL5 → portable
-    if term_root is not None and _paths_equal(root, term_root):
-        return True, root
-    return False, root
+        s = str(flag).strip().lower()
+        if s in ('true','yes','on'):
+            return True
+        if s in ('false','no','off'):
+            return False
+        try:
+            return bool(int(float(s)))
+        except Exception:
+            return bool(flag)
+
+
+def _append_launch_switches(extra: list[str], terminal: Path, data_dir: Path, portable_flag: bool | None, profile: str | None):
+    profile = profile or 'Default'
+    extra.append(f"/profile:{profile}")
+    flag = _normalize_portable_flag(portable_flag)
+    if flag is None:
+        flag = False
+    data_root = _datapath_root_from_data_dir(data_dir)
+    if flag:
+        term_root = win_to_wsl(terminal).parent
+        if not _paths_equal(term_root, data_root):
+            raise SystemExit("portable=1 requer que data_dir seja '<terminal_dir>\\MQL5'. Ajuste o projeto ou use --portable 0.")
+        extra.append('/portable')
+    else:
+        extra.append(f"/datapath:{to_windows_path(data_root)}")
 
 
 def collect_log_targets(data_dir: Path | None) -> list[tuple[str, Path]]:
@@ -408,13 +424,7 @@ def boot_with_ini_and_schedule(terminal: Path, data_dir: Path, symbol: str, peri
     if commands:
         send_listener_command(data_dir, commands[0])
     extra = [f"/config:{to_windows_path(ini)}"]
-    use_portable, dp_root = _should_use_portable(terminal, data_dir, portable)
-    # Sempre fornecer um profile explícito
-    extra.append(f"/profile:{profile or 'Default'}")
-    if use_portable:
-        extra.append('/portable')
-    else:
-        extra.append(f"/datapath:{to_windows_path(dp_root)}")
+    _append_launch_switches(extra, terminal, data_dir, portable, profile)
     rc = run_win_exe(terminal, extra, detach=True)
     time.sleep(1.2)
     print_log_tail('boot with ini', data_dir=data_dir)
@@ -851,14 +861,7 @@ def cmd_listener_run(args):
     write_text_utf16(ini, content)
     print(tr('ini_saved', path=str(ini)))
     extra = [f"/config:{to_windows_path(ini)}"]
-    use_portable, datapath_root = _should_use_portable(terminal, data_dir, getattr(args, 'portable', None))
-    # Sempre usar um profile explícito
-    prof = getattr(args, 'profile', None) or 'Default'
-    extra.append(f"/profile:{prof}")
-    if use_portable:
-        extra.append('/portable')
-    else:
-        extra.append(f"/datapath:{to_windows_path(datapath_root)}")
+    _append_launch_switches(extra, terminal, data_dir, getattr(args, 'portable', None), getattr(args, 'profile', None))
     if getattr(args, 'trace', False):
         try:
             exe_win = to_windows_path(terminal)
@@ -1112,13 +1115,8 @@ def chart_template_apply(args):
                                 script_params=None,
                                 shutdown=False)
     write_text_utf16(ini, content)
-    use_portable, dp_root = _should_use_portable(terminal, data_dir, getattr(args, 'portable', None))
     extra = [f"/config:{to_windows_path(ini)}"]
-    extra.append(f"/profile:{getattr(args,'profile', None) or 'Default'}")
-    if use_portable:
-        extra.append('/portable')
-    else:
-        extra.append(f"/datapath:{to_windows_path(dp_root)}")
+    _append_launch_switches(extra, terminal, data_dir, getattr(args, 'portable', None), getattr(args, 'profile', None))
     rc = run_win_exe(terminal, extra, detach=True)
     time.sleep(0.8)
     print_log_tail('apply template (boot)', data_dir=data_dir)
@@ -1746,11 +1744,13 @@ def with_project_defaults(args, use_indicator: bool = True):
     if use_indicator and not getattr(args, 'indicator', None) and defs['indicator']:
         setattr(args, 'indicator', defs['indicator'])
     # Propagar portable/profile quando presente
-    if not hasattr(args, 'portable') or getattr(args, 'portable') is None:
-        setattr(args, 'portable', defs.get('portable'))
-    if not hasattr(args, 'profile') or getattr(args, 'profile') is None:
-        if defs.get('profile'):
-            setattr(args, 'profile', defs.get('profile'))
+    portable_flag = getattr(args, 'portable', None)
+    if portable_flag is None:
+        portable_flag = defs.get('portable')
+    portable_flag = _normalize_portable_flag(portable_flag)
+    setattr(args, 'portable', portable_flag if portable_flag is not None else False)
+    if not getattr(args, 'profile', None) and defs.get('profile'):
+        setattr(args, 'profile', defs.get('profile'))
     return args
 
 
@@ -2876,13 +2876,7 @@ def main():
                                     shutdown=False)
         write_text_utf16(ini, content)
         extra = [f"/config:{to_windows_path(ini)}"]
-        prof = getattr(args, 'profile', None) or 'Default'
-        extra.append(f"/profile:{prof}")
-        use_portable, dp_root = _should_use_portable(terminal, data_dir, getattr(args, 'portable', None))
-        if use_portable:
-            extra.append('/portable')
-        else:
-            extra.append(f"/datapath:{to_windows_path(dp_root)}")
+        _append_launch_switches(extra, terminal, data_dir, getattr(args, 'portable', None), getattr(args, 'profile', None))
         run_win_exe(terminal, extra, detach=True)
         # Espera robusta pelo arquivo (até ~5s)
         out_file = win_to_wsl(data_dir) / 'Files' / 'datapath.txt'
@@ -3139,13 +3133,7 @@ def main():
         write_text_utf16(ini, "\n".join(lines)+"\n")
         # Inicia o Terminal
         extra = [f"/config:{to_windows_path(ini)}"]
-        if getattr(args, 'profile', None):
-            extra.append(f"/profile:{args.profile}")
-        use_portable, dp_root = _should_use_portable(terminal, data_dir, getattr(args, 'portable', None))
-        if use_portable:
-            extra.append('/portable')
-        else:
-            extra.append(f"/datapath:{to_windows_path(dp_root)}")
+        _append_launch_switches(extra, terminal, data_dir, getattr(args, 'portable', None), getattr(args, 'profile', None))
         rc = run_win_exe(terminal, extra, detach=True)
         time.sleep(1.0)
         print_log_tail('tester run', data_dir=data_dir)
