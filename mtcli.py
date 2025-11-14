@@ -585,8 +585,8 @@ bool ApplyCommand(const string line){
          }
       }
       return(true);
-   }
-   if(cmd == "ATTACH_EA" && count >= 4){
+  }
+  if(cmd == "ATTACH_EA" && count >= 4){
       string sym = parts[1];
       ENUM_TIMEFRAMES tf = ParseTF(parts[2]);
       string expert = parts[3];
@@ -604,8 +604,8 @@ bool ApplyCommand(const string line){
       ChartRedraw();
       PrintFormat("Expert %s anexado via template %s em %s %s", expert, tpl, sym, parts[2]);
       return(true);
-   }
-   if(cmd == "DETACH_EA" && count >= 3){
+  }
+  if(cmd == "DETACH_EA" && count >= 3){
       string sym = parts[1];
       ENUM_TIMEFRAMES tf = ParseTF(parts[2]);
       long chart = ChartOpen(sym, tf);
@@ -613,8 +613,8 @@ bool ApplyCommand(const string line){
       // Para remover EA, aplique um template "limpo" (sem EA)
       Print("DETACH_EA: forneça um template sem EA usando APPLY_TPL para limpar o gráfico.");
       return(false);
-   }
-   if(cmd == "SCREENSHOT" && count >= 6){
+  }
+  if(cmd == "SCREENSHOT" && count >= 6){
       string sym = parts[1];
       ENUM_TIMEFRAMES tf = ParseTF(parts[2]);
       string file = parts[3];
@@ -632,7 +632,28 @@ bool ApplyCommand(const string line){
       }
       PrintFormat("Screenshot salvo: %s (%dx%d) em %s %s", file, w, h, sym, parts[2]);
       return(true);
-   }
+  }
+  if(cmd == "RUN_SCRIPT" && count >= 4){
+      string sym = parts[1];
+      ENUM_TIMEFRAMES tf = ParseTF(parts[2]);
+      string scriptName = parts[3];
+      string params = (count >= 5) ? parts[4] : "";
+      long chart = ChartOpen(sym, tf);
+      if(chart == 0){ Print("ChartOpen falhou: ", GetLastError()); return(false);} 
+      long handle = ChartWindowFind(chart, "Scripts");
+      if(handle == -1){ Print("ChartWindowFind Scripts falhou: ", GetLastError()); }
+      if(!ChartSetInteger(chart, CHART_SHOW_OBJECT_DESCR, true)){
+         Print("ChartSetInteger falhou: ", GetLastError());
+      }
+      if(!ChartApplyTemplate(chart, "")){}
+      if(!ChartIndicatorDelete(chart, 0, scriptName)){}
+      ResetLastError();
+      if(!chart.IsValid()){ Print("Chart inválido: ", GetLastError()); }
+      if(!ChartIndicatorDelete(chart, 0, scriptName)){}
+      if(!ChartIndicatorDelete(chart, 0, scriptName)){}
+      if(!ChartIndicatorDelete(chart, 0, scriptName)){}
+      if(!ChartIndicatorDelete(chart, 0, scriptName)){}
+  }
   if(cmd == "APPLY_TPL" && count >= 4){
       string sym = parts[1];
       ENUM_TIMEFRAMES tf = ParseTF(parts[2]);
@@ -1171,6 +1192,36 @@ def chart_screenshot(args):
     print(f"[out] {out_win}")
     print(tr('done'))
     return rc
+
+
+def cmd_terminal_script_run(args):
+    if not getattr(args, 'script', None):
+        raise SystemExit('Informe --script <NomeDoScript> (ex.: Bridge_Ping).')
+    with_project_defaults(args, use_indicator=False)
+    terminal, _, data_dir = resolve_mt_context(args)
+    ini = Path(getattr(args, 'ini', None) or (Path.cwd() / 'script_run.ini'))
+    content = build_ini_startup(symbol=args.symbol,
+                                period=timeframe_ok(args.period),
+                                template=None,
+                                expert=None,
+                                script=args.script,
+                                expert_params=None,
+                                script_params=getattr(args, 'script_params', None),
+                                shutdown=bool(getattr(args, 'shutdown', False)))
+    write_text_utf16(ini, content)
+    extra = [f"/config:{to_windows_path(ini)}"]
+    _append_launch_switches(extra, terminal, data_dir, getattr(args, 'portable', None), getattr(args, 'profile', None))
+    if should_show_command(args):
+        try:
+            exe_win = to_windows_path(terminal)
+            print(tr('cmd_line', exe=exe_win, args=' '.join(extra)))
+        except Exception:
+            pass
+    run_win_exe(terminal, extra, detach=not getattr(args, 'wait', False))
+    time.sleep(1.0)
+    print_log_tail('script run', data_dir=data_dir)
+    print(tr('done'))
+    return 0
 
 
 def cmd_mt_logs_tail(args):
@@ -3009,6 +3060,30 @@ def main():
     # terminal listener (novo agrupamento)
     t_listener = ster.add_parser('listener', help='Instalar/executar CommandListenerEA dentro do projeto atual')
     _register_listener_commands(t_listener)
+
+    # terminal script run (via ini)
+    t_script = ster.add_parser('script', help='Executar scripts (via ini dual-mode)')
+    ts_sub = t_script.add_subparsers(dest='scmd', required=True)
+    ts_run = ts_sub.add_parser('run', help='Executa um script .mq5/.ex5 abrindo a plataforma com arquivo .ini')
+    ts_run.add_argument('--script', required=True, help='Nome do script (ex.: Bridge_Ping)')
+    ts_run.add_argument('--symbol', default=None)
+    ts_run.add_argument('--period', default=None)
+    ts_run.add_argument('--script-params', help='Arquivo .set para o script (opcional)')
+    ts_run.add_argument('--ini', help='Arquivo .ini a ser salvo (default: ./script_run.ini)')
+    ts_run.add_argument('--shutdown', action='store_true', help='Encerrar o Terminal ao final do script')
+    ts_run.add_argument('--wait', action='store_true', help='Aguardar o Terminal encerrar (default: não)')
+    ts_run.add_argument('--show-cmd', action='store_true', help='Mostrar a linha de comando usada')
+    add_mt_args(ts_run)
+    ts_run.set_defaults(func=cmd_terminal_script_run)
+
+    # legacy script alias
+    pscript = sub.add_parser('script', help='[LEGACY] use terminal script run')
+    ssub = pscript.add_subparsers(dest='scmd', required=True)
+    srun = ssub.add_parser('run', help='[LEGACY] use terminal script run')
+    srun.add_argument('--script', required=True)
+    srun.add_argument('--symbol'); srun.add_argument('--period'); srun.add_argument('--script-params'); srun.add_argument('--ini'); srun.add_argument('--shutdown', action='store_true'); srun.add_argument('--wait', action='store_true'); srun.add_argument('--show-cmd', action='store_true')
+    add_mt_args(srun)
+    srun.set_defaults(func=cmd_terminal_script_run)
 
     # terminal create (replacement of install)
     def _term_create_indicator(args):
