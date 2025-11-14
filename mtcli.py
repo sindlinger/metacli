@@ -321,6 +321,36 @@ def _mql5_dir_from_data_dir(data_dir: Path) -> Path:
     return p
 
 
+def _datapath_root_from_data_dir(data_dir: Path) -> Path:
+    return _mql5_dir_from_data_dir(data_dir).parent
+
+
+def _paths_equal(a: Path, b: Path) -> bool:
+    try:
+        return os.path.normcase(os.path.abspath(str(a))) == os.path.normcase(os.path.abspath(str(b)))
+    except Exception:
+        return str(a).replace('\\','/').lower() == str(b).replace('\\','/').lower()
+
+
+def _should_use_portable(terminal: Path, data_dir: Path, portable_pref: bool | None) -> tuple[bool, Path]:
+    root = _datapath_root_from_data_dir(data_dir)
+    term_root = None
+    try:
+        term_root = win_to_wsl(terminal).parent
+    except Exception:
+        term_root = None
+    if portable_pref is not None:
+        want = bool(portable_pref)
+        if want and term_root is not None and not _paths_equal(root, term_root):
+            # não faz sentido usar portable se o usuário apontou outra Data Folder
+            return False, root
+        return want, root
+    # heurística: se Data Folder == <terminal_dir>/MQL5 → portable
+    if term_root is not None and _paths_equal(root, term_root):
+        return True, root
+    return False, root
+
+
 def collect_log_targets(data_dir: Path | None) -> list[tuple[str, Path]]:
     targets: list[tuple[str, Path]] = []
     if not data_dir:
@@ -362,7 +392,7 @@ def is_listener_active(data_dir: Path) -> bool:
         return False
 
 def boot_with_ini_and_schedule(terminal: Path, data_dir: Path, symbol: str, period: str,
-                               commands: list[str], portable: bool = False, profile: str | None = None,
+                               commands: list[str], portable: bool | None = None, profile: str | None = None,
                                ini_out: Path | None = None) -> int:
     ini = ini_out or (Path.cwd() / 'mt_boot.ini')
     content = build_ini_startup(symbol=symbol,
@@ -378,24 +408,13 @@ def boot_with_ini_and_schedule(terminal: Path, data_dir: Path, symbol: str, peri
     if commands:
         send_listener_command(data_dir, commands[0])
     extra = [f"/config:{to_windows_path(ini)}"]
-    # Agnóstico: só usa /portable ou /datapath de acordo com o projeto (sem forçar)
-    try:
-        win_dd = wsl_to_win(data_dir)
-        win_tp = wsl_to_win(terminal.parent)
-        # Se o projeto marcou portable=True, não passamos /datapath
-        # Caso contrário, usamos /datapath apontando para a raiz da Data Folder (pai do MQL5)
-        if portable:
-            pass
-        else:
-            mql5 = _mql5_dir_from_data_dir(data_dir)
-            dp = to_windows_path(mql5.parent)
-            extra.append(f"/datapath:{dp}")
-    except Exception:
-        pass
+    use_portable, dp_root = _should_use_portable(terminal, data_dir, portable)
     # Sempre fornecer um profile explícito
     extra.append(f"/profile:{profile or 'Default'}")
-    if portable:
+    if use_portable:
         extra.append('/portable')
+    else:
+        extra.append(f"/datapath:{to_windows_path(dp_root)}")
     rc = run_win_exe(terminal, extra, detach=True)
     time.sleep(1.2)
     print_log_tail('boot with ini', data_dir=data_dir)
@@ -832,30 +851,14 @@ def cmd_listener_run(args):
     write_text_utf16(ini, content)
     print(tr('ini_saved', path=str(ini)))
     extra = [f"/config:{to_windows_path(ini)}"]
-    # portable: se não foi informado na linha de comando, use defaults do projeto
-    want_portable = getattr(args, 'portable', None)
-    if want_portable is None:
-        # with_project_defaults pode ter injetado portable=True/False em args
-        want_portable = getattr(args, 'portable', True)
-    else:
-        # quando passado por linha de comando como 0/1 (type=int), normalize para bool
-        try:
-            want_portable = bool(int(want_portable))
-        except Exception:
-            want_portable = bool(want_portable)
+    use_portable, datapath_root = _should_use_portable(terminal, data_dir, getattr(args, 'portable', None))
     # Sempre usar um profile explícito
     prof = getattr(args, 'profile', None) or 'Default'
     extra.append(f"/profile:{prof}")
-    if want_portable:
+    if use_portable:
         extra.append('/portable')
     else:
-        # /datapath com a raiz da Data Folder (pai do MQL5)
-        try:
-            mql5 = _mql5_dir_from_data_dir(data_dir)
-            dp = to_windows_path(mql5.parent)
-            extra.append(f"/datapath:{dp}")
-        except Exception:
-            pass
+        extra.append(f"/datapath:{to_windows_path(datapath_root)}")
     if getattr(args, 'trace', False):
         try:
             exe_win = to_windows_path(terminal)
@@ -1016,7 +1019,7 @@ def chart_indicator_attach(args):
         return 0
     # MT fechado → boot com INI + cmd.txt
     print('[dual-mode] listener inativo: inicializando Terminal com INI + comando pendente')
-    rc = boot_with_ini_and_schedule(terminal, data_dir, symbol, period, [line])
+    rc = boot_with_ini_and_schedule(terminal, data_dir, symbol, period, [line], portable=getattr(args, 'portable', None), profile=getattr(args, 'profile', None))
     print(tr('done'))
     return rc
 
@@ -1037,7 +1040,7 @@ def chart_indicator_detach(args):
         print(tr('done'))
         return 0
     print('[dual-mode] listener inativo: inicializando Terminal com INI + comando pendente')
-    rc = boot_with_ini_and_schedule(terminal, data_dir, symbol, period, [line])
+    rc = boot_with_ini_and_schedule(terminal, data_dir, symbol, period, [line], portable=getattr(args, 'portable', None), profile=getattr(args, 'profile', None))
     print(tr('done'))
     return rc
 
@@ -1058,7 +1061,7 @@ def chart_expert_attach(args):
         return 0
     # MT fechado: podemos iniciar diretamente com Expert no INI (resultado equivalente)
     print('[dual-mode] listener inativo: inicializando Terminal com Expert no INI')
-    rc = boot_with_ini_and_schedule(terminal, data_dir, symbol, period, commands=[], portable=False, profile=None)
+    rc = boot_with_ini_and_schedule(terminal, data_dir, symbol, period, commands=[], portable=getattr(args, 'portable', None), profile=getattr(args, 'profile', None))
     print(tr('done'))
     return rc
 
@@ -1077,7 +1080,7 @@ def chart_expert_detach(args):
         print(tr('done'))
         return 0
     print('[dual-mode] listener inativo: inicializando Terminal com INI + comando pendente')
-    rc = boot_with_ini_and_schedule(terminal, data_dir, symbol, period, [line])
+    rc = boot_with_ini_and_schedule(terminal, data_dir, symbol, period, [line], portable=getattr(args, 'portable', None), profile=getattr(args, 'profile', None))
     print(tr('done'))
     return rc
 
@@ -1109,7 +1112,14 @@ def chart_template_apply(args):
                                 script_params=None,
                                 shutdown=False)
     write_text_utf16(ini, content)
-    rc = run_win_exe(terminal, [f"/config:{to_windows_path(ini)}"], detach=True)
+    use_portable, dp_root = _should_use_portable(terminal, data_dir, getattr(args, 'portable', None))
+    extra = [f"/config:{to_windows_path(ini)}"]
+    extra.append(f"/profile:{getattr(args,'profile', None) or 'Default'}")
+    if use_portable:
+        extra.append('/portable')
+    else:
+        extra.append(f"/datapath:{to_windows_path(dp_root)}")
+    rc = run_win_exe(terminal, extra, detach=True)
     time.sleep(0.8)
     print_log_tail('apply template (boot)', data_dir=data_dir)
     print(tr('done'))
@@ -1152,7 +1162,7 @@ def chart_screenshot(args):
         return 0
 
     print('[dual-mode] listener inativo: inicializando Terminal com INI + comando pendente')
-    rc = boot_with_ini_and_schedule(terminal, data_dir, symbol, period, [line])
+    rc = boot_with_ini_and_schedule(terminal, data_dir, symbol, period, [line], portable=getattr(args, 'portable', None), profile=getattr(args, 'profile', None))
     print(f"[out] {out_win}")
     print(tr('done'))
     return rc
@@ -1716,7 +1726,7 @@ def resolve_project_defaults(root: str, project_id: str | None):
         'period': defaults.get('period', 'H1'),
         'subwindow': int(defaults.get('subwindow', 1)),
         'indicator': defaults.get('indicator') or None,
-        'portable': bool(defaults.get('portable', True)),
+        'portable': defaults.get('portable'),
         'profile': defaults.get('profile'),
     }
 
@@ -1737,7 +1747,7 @@ def with_project_defaults(args, use_indicator: bool = True):
         setattr(args, 'indicator', defs['indicator'])
     # Propagar portable/profile quando presente
     if not hasattr(args, 'portable') or getattr(args, 'portable') is None:
-        setattr(args, 'portable', defs.get('portable', True))
+        setattr(args, 'portable', defs.get('portable'))
     if not hasattr(args, 'profile') or getattr(args, 'profile') is None:
         if defs.get('profile'):
             setattr(args, 'profile', defs.get('profile'))
@@ -2511,6 +2521,8 @@ def main():
         parser.add_argument('--terminal', help='Caminho manual para terminal64.exe')
         parser.add_argument('--metaeditor', help='Caminho manual para metaeditor64.exe')
         parser.add_argument('--data-dir', help='Data Folder raiz (pasta contendo MQL5)')
+        parser.add_argument('--portable', type=int, choices=[0,1], help='Modo Portable (1) ou /datapath (0); default: automático por projeto')
+        parser.add_argument('--profile', help='Profile do Terminal a usar (default: do projeto ou Default)')
 
     # install (indicator/expert)
     pinstall = sub.add_parser('install', help=argparse.SUPPRESS)
@@ -2539,8 +2551,6 @@ def main():
     lr.add_argument('--indicator', help='Anexar indicador automaticamente ao iniciar')
     lr.add_argument('--indicator-subwindow', type=int, default=0)
     lr.add_argument('--ini', help='Arquivo .ini para salvar (default: ./listener.ini)')
-    lr.add_argument('--portable', type=int, choices=[0,1], help='Override do modo Portable (1=on, 0=off)')
-    lr.add_argument('--profile', help='Perfil do Terminal a usar (equivale a /profile:Nome)')
     lr.add_argument('--trace', action='store_true', help='Mostra a linha de comando usada para iniciar o Terminal')
     g_det = lr.add_mutually_exclusive_group()
     g_det.add_argument('--detach', dest='detach', action='store_true', default=True, help='Inicia e retorna imediatamente (default)')
@@ -2843,14 +2853,12 @@ def main():
 
     mtst = smt.add_parser('status', help='Mostra saúde do Terminal/Listener e tail de logs')
     mtst.add_argument('--repair', action='store_true', help='Corrige ausências (inicia Terminal/instala listener)')
-    mtst.add_argument('--portable', action='store_true', help='Iniciar Terminal em modo Portable (quando usar --repair)')
-    mtst.add_argument('--profile', help='Perfil do Terminal a abrir (quando usar --repair)')
     add_mt_args(mtst)
     def cmd_mt_status(args):
-        if args.repair:
+        if getattr(args, 'repair', False):
             # Usa ensure para (re)instalar e (re)iniciar, mas aborta se a compilação do listener falhar
             e = argparse.Namespace(project=getattr(args,'project',None), root=getattr(args,'root',None), libs=None, terminal=None, metaeditor=None, data_dir=None, force=True, force_start=False,
-                                   portable=getattr(args,'portable',False), profile=getattr(args,'profile',None))
+                                   portable=getattr(args,'portable',None), profile=getattr(args,'profile',None))
             rc = cmd_listener_ensure(e)
             if rc != 0:
                 return rc
@@ -2870,21 +2878,11 @@ def main():
         extra = [f"/config:{to_windows_path(ini)}"]
         prof = getattr(args, 'profile', None) or 'Default'
         extra.append(f"/profile:{prof}")
-        want_portable = getattr(args, 'portable', None)
-        if want_portable is None:
-            want_portable = getattr(args, 'portable', True)
-        else:
-            try: want_portable = bool(int(want_portable))
-            except Exception: want_portable = bool(want_portable)
-        if want_portable:
+        use_portable, dp_root = _should_use_portable(terminal, data_dir, getattr(args, 'portable', None))
+        if use_portable:
             extra.append('/portable')
         else:
-            try:
-                mql5 = _mql5_dir_from_data_dir(data_dir)
-                dp = to_windows_path(mql5.parent)
-                extra.append(f"/datapath:{dp}")
-            except Exception:
-                pass
+            extra.append(f"/datapath:{to_windows_path(dp_root)}")
         run_win_exe(terminal, extra, detach=True)
         # Espera robusta pelo arquivo (até ~5s)
         out_file = win_to_wsl(data_dir) / 'Files' / 'datapath.txt'
@@ -2911,8 +2909,6 @@ def main():
     mv = smt.add_parser('verify-datapath', help='Verifica se o MT iniciou exatamente na Data Folder do projeto')
     mv.add_argument('--symbol', default='EURUSD')
     mv.add_argument('--period', default='H1')
-    mv.add_argument('--portable', type=int, choices=[0,1])
-    mv.add_argument('--profile')
     add_mt_args(mv)
     mv.set_defaults(func=cmd_mt_verify_datapath)
 
@@ -2929,8 +2925,6 @@ def main():
     t_vd = ster.add_parser('verify-datapath', help='Verify that MT started in the exact project Data Folder')
     t_vd.add_argument('--symbol', default='EURUSD')
     t_vd.add_argument('--period', default='H1')
-    t_vd.add_argument('--portable', type=int, choices=[0,1])
-    t_vd.add_argument('--profile')
     add_mt_args(t_vd)
     t_vd.set_defaults(func=cmd_mt_verify_datapath)
 
@@ -3089,8 +3083,6 @@ def main():
     mtt_run.add_argument('--currency', default='USD', help='Moeda do depósito (default: USD)')
     mtt_run.add_argument('--leverage', default='1:100', help='Alavancagem (ex.: 1:100)')
     mtt_run.add_argument('--report', help='Arquivo de relatório (html/xml). Default: ./tester_report.html')
-    mtt_run.add_argument('--portable', action='store_true', help='Iniciar Terminal em modo Portable')
-    mtt_run.add_argument('--profile', help='Perfil do Terminal a abrir')
     add_mt_args(mtt_run)
     def _fmt_date(d):
         if not d: return None
@@ -3149,8 +3141,11 @@ def main():
         extra = [f"/config:{to_windows_path(ini)}"]
         if getattr(args, 'profile', None):
             extra.append(f"/profile:{args.profile}")
-        if getattr(args, 'portable', False):
+        use_portable, dp_root = _should_use_portable(terminal, data_dir, getattr(args, 'portable', None))
+        if use_portable:
             extra.append('/portable')
+        else:
+            extra.append(f"/datapath:{to_windows_path(dp_root)}")
         rc = run_win_exe(terminal, extra, detach=True)
         time.sleep(1.0)
         print_log_tail('tester run', data_dir=data_dir)
