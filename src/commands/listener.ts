@@ -4,7 +4,7 @@ import fs from 'fs-extra';
 import chalk from 'chalk';
 import { ProjectStore, repoRoot } from '../config/projectStore.js';
 import { runCommand } from '../utils/shell.js';
-import { toWinPath, toWslPath, normalizePath } from '../utils/paths.js';
+import { toWinPath, toWslPath, normalizePath, platformIsWindows } from '../utils/paths.js';
 import { printLatestLogFromDataDir } from '../utils/logs.js';
 import { execa } from 'execa';
 
@@ -37,7 +37,11 @@ export async function runListenerInstance(options: ListenerRunOpts) {
   const exe = toWslPath(info.terminal);
   console.log(chalk.gray(`[listener] ${exe} ${args.join(' ')}`));
   await runCommand(exe, args, { detach: true, stdio: 'ignore' });
-  console.log(chalk.green('Terminal iniciado em segundo plano.'));
+  if (!(await waitForTerminalStart())) {
+    console.log(chalk.red('Terminal não permaneceu aberto após o restart. Verifique o listener.'));
+  } else {
+    console.log(chalk.green('Terminal iniciado em segundo plano.'));
+  }
 }
 
 async function killTerminalProcesses() {
@@ -49,11 +53,15 @@ async function killTerminalProcesses() {
 }
 
 export async function restartListenerInstance(options: ListenerRunOpts) {
-  await killTerminalProcesses();
+  const wasRunning = await isListenerRunning();
+  if (wasRunning) {
+    await killTerminalProcesses();
+  }
   await runListenerInstance(options);
 }
 
 export async function isListenerRunning(): Promise<boolean> {
+  if (!platformIsWindows()) return true;
   try {
     await execa('powershell.exe', ['-Command', 'Get-Process terminal64 -ErrorAction SilentlyContinue | Out-Null'], { stdio: 'ignore' });
     return true;
@@ -61,6 +69,16 @@ export async function isListenerRunning(): Promise<boolean> {
     return false;
   }
 }
+
+async function waitForTerminalStart(timeoutMs = 5000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await isListenerRunning()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return false;
+}
+
 
 async function showListenerStatus(project?: string) {
   const info = await store.useOrThrow(project);
