@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { ProjectStore, ProjectDefaults } from '../config/projectStore.js';
+import { ProjectStore, ProjectDefaults, ProjectInfo } from '../config/projectStore.js';
+import { printLatestLogFromDataDir } from '../utils/logs.js';
 import { restartListenerInstance } from './listener.js';
 
 const store = new ProjectStore();
@@ -8,6 +9,20 @@ const DEFAULT_DATA_DIR = 'C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72
 const DEFAULT_TERMINAL = 'C:/Dukascopy MetaTrader 5/terminal64.exe';
 const DEFAULT_METAEDITOR = 'C:/Dukascopy MetaTrader 5/MetaEditor64.exe';
 const DEFAULT_LIBS = `${DEFAULT_DATA_DIR}/MQL5/Libraries`;
+
+function logProjectSummary(info: ProjectInfo) {
+  console.log(chalk.bold(`[project ${info.project}]`));
+  console.log(`  libs: ${info.libs}`);
+  console.log(`  terminal: ${info.terminal || '(não definido)'}`);
+  console.log(`  metaeditor: ${info.metaeditor || '(não definido)'}`);
+  console.log(`  data_dir: ${info.data_dir || '(não definido)'}`);
+  if (info.defaults) {
+    console.log(`  defaults: ${JSON.stringify(info.defaults)}`);
+  }
+  if (info.data_dir) {
+    printLatestLogFromDataDir(info.data_dir, 20);
+  }
+}
 const DEFAULTS: ProjectDefaults = {
   symbol: 'EURUSD',
   period: 'H1',
@@ -35,6 +50,7 @@ export function registerProjectCommands(program: Command) {
       const saved = await store.setProject(opts.id, payload, true);
       console.log(chalk.green(`Projeto ${saved.project} inicializado com caminhos padrão.`));
       await restartListenerInstance({ project: saved.project, profile: DEFAULTS.profile ?? undefined });
+      logProjectSummary(saved);
     });
 
   project
@@ -83,6 +99,7 @@ export function registerProjectCommands(program: Command) {
       console.log(chalk.green(`Projeto ${saved.project} salvo.`));
       if (payload.terminal && payload.data_dir) {
         await restartListenerInstance({ project: saved.project, profile: saved.defaults?.profile ?? undefined });
+        logProjectSummary(saved);
       }
     });
 

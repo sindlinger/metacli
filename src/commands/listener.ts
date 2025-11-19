@@ -38,13 +38,14 @@ export async function runListenerInstance(options: ListenerRunOpts) {
   console.log(chalk.gray(`[listener] ${exe} ${args.join(' ')}`));
   await runCommand(exe, args, { detach: true, stdio: 'ignore' });
   if (!(await waitForTerminalStart())) {
-    console.log(chalk.red('Terminal não permaneceu aberto após o restart. Verifique o listener.'));
-  } else {
-    console.log(chalk.green('Terminal iniciado em segundo plano.'));
+    throw new Error('Terminal não permaneceu aberto após o restart. Verifique o listener.');
   }
+  console.log(chalk.green('Terminal iniciado em segundo plano.'));
+
 }
 
 async function killTerminalProcesses() {
+  if (!platformIsWindows()) return;
   try {
     await runCommand('powershell.exe', ['-Command', 'Get-Process terminal64 -ErrorAction SilentlyContinue | Stop-Process -Force'], { stdio: 'ignore' });
   } catch {
@@ -52,11 +53,20 @@ async function killTerminalProcesses() {
   }
 }
 
-export async function restartListenerInstance(options: ListenerRunOpts) {
-  const wasRunning = await isListenerRunning();
-  if (wasRunning) {
+async function ensureTerminalStopped(timeoutMs = 5000) {
+  if (!platformIsWindows()) return;
+  const start = Date.now();
+  while (await isListenerRunning()) {
     await killTerminalProcesses();
+    if (Date.now() - start >= timeoutMs) {
+      throw new Error('Não foi possível encerrar terminal64.exe automaticamente. Feche manualmente e tente novamente.');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
+}
+
+export async function restartListenerInstance(options: ListenerRunOpts) {
+  await ensureTerminalStopped();
   await runListenerInstance(options);
 }
 
