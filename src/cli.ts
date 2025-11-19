@@ -30,7 +30,7 @@ async function main() {
   registerUtilsCommands(program);
   registerConfigCommands(program);
 
-  program.addHelpText('after', '\nExemplo rápido:\n  mtcli project show\n  mtcli listener run\n  mtcli chart indicator attach --symbol EURUSD --period H1 --indicator WaveSpecZZ_Project/WaveSpecZZ_1.1.0-gpuopt');
+  program.addHelpText('after', '\nExemplo rápido:\n  mtcli project show\n  mtcli listener start\n  mtcli chart indicator attach --symbol EURUSD --period H1 --indicator WaveSpecZZ_Project/WaveSpecZZ_1.1.0-gpuopt');
 
   try {
     await program.parseAsync(process.argv);

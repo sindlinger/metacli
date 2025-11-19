@@ -4,7 +4,7 @@ import fs from 'fs-extra';
 import chalk from 'chalk';
 import { ProjectStore, repoRoot } from '../config/projectStore.js';
 import { runCommand } from '../utils/shell.js';
-import { toWinPath, toWslPath, normalizePath, platformIsWindows } from '../utils/paths.js';
+import { toWinPath, toWslPath, normalizePath, platformIsWindows, resolvePowerShell } from '../utils/paths.js';
 import { printLatestLogFromDataDir } from '../utils/logs.js';
 import { execa } from 'execa';
 
@@ -41,13 +41,30 @@ export async function runListenerInstance(options: ListenerRunOpts) {
     throw new Error('Terminal não permaneceu aberto após o restart. Verifique o listener.');
   }
   console.log(chalk.green('Terminal iniciado em segundo plano.'));
+  await printLatestLogFromDataDir(dataDir);
+}
 
+let cachedPowerShell: string | null = null;
+
+function powerShellExe(): string {
+  if (!platformIsWindows()) {
+    throw new Error('Operação disponível apenas no Windows/WSL.');
+  }
+  if (!cachedPowerShell) {
+    cachedPowerShell = resolvePowerShell();
+  }
+  return cachedPowerShell;
 }
 
 async function killTerminalProcesses() {
   if (!platformIsWindows()) return;
   try {
-    await runCommand('powershell.exe', ['-Command', 'Get-Process terminal64 -ErrorAction SilentlyContinue | Stop-Process -Force'], { stdio: 'ignore' });
+    console.log(chalk.gray('[listener] encerrando instâncias atuais de terminal64.exe...'));
+    await runCommand(
+      powerShellExe(),
+      ['-Command', 'Get-Process -Name terminal64 -ErrorAction SilentlyContinue | Stop-Process -Force'],
+      { stdio: 'ignore' }
+    );
   } catch {
     // ignora falhas (processo já fechado)
   }
@@ -56,12 +73,17 @@ async function killTerminalProcesses() {
 async function ensureTerminalStopped(timeoutMs = 5000) {
   if (!platformIsWindows()) return;
   const start = Date.now();
+  let attempted = false;
   while (await isListenerRunning()) {
+    attempted = true;
     await killTerminalProcesses();
     if (Date.now() - start >= timeoutMs) {
       throw new Error('Não foi possível encerrar terminal64.exe automaticamente. Feche manualmente e tente novamente.');
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  if (attempted) {
+    console.log(chalk.green('[listener] terminal anterior encerrado.'));
   }
 }
 
@@ -73,7 +95,11 @@ export async function restartListenerInstance(options: ListenerRunOpts) {
 export async function isListenerRunning(): Promise<boolean> {
   if (!platformIsWindows()) return true;
   try {
-    await execa('powershell.exe', ['-Command', 'Get-Process terminal64 -ErrorAction SilentlyContinue | Out-Null'], { stdio: 'ignore' });
+    await execa(
+      powerShellExe(),
+      ['-Command', 'if (Get-Process -Name terminal64 -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }'],
+      { stdio: 'ignore' }
+    );
     return true;
   } catch {
     return false;
@@ -103,7 +129,7 @@ export function registerListenerCommands(program: Command) {
   const listener = program.command('listener').description('Opera o CommandListenerEA/terminal');
 
   listener
-    .command('run')
+    .command('start')
     .description('Abre o terminal com o listener.ini')
     .option('--project <id>', 'Projeto configurado')
     .option('--config <path>', 'Arquivo listener.ini customizado')
@@ -111,14 +137,6 @@ export function registerListenerCommands(program: Command) {
     .action(async (opts) => {
       await runListenerInstance(opts);
     });
-
-  listener
-    .command('ensure')
-    .description('Alias para listener run')
-    .option('--project <id>')
-    .option('--config <path>')
-    .option('--profile <name>')
-    .action(async (opts) => runListenerInstance(opts));
 
   listener
     .command('restart')

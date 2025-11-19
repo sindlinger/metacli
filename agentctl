@@ -21,7 +21,7 @@ teeout() { tee -a "$alog"; }
 help() {
   cat <<EOF
 agentctl — comandos:
-  listener ensure <symbol> <tf>      # instala e roda o CommandListener
+  listener start <symbol> <tf>       # instala e roda o CommandListener
   indicator full <file.mq5|.ex5> [--symbol S --tf TF --subwin N]
   indicator install <file>           # só instala/compila
   indicator attach <name> [--symbol S --tf TF --subwin N]
@@ -46,12 +46,12 @@ case "$dom" in
   listener)
     act="${1:-}"; shift || true
     sym="${1:-$DEFAULT_SYMBOL}"; tf="${2:-$DEFAULT_TF}"
-    if [[ "$act" == "ensure" ]]; then
-      log "Garantindo listener (install/run) em $sym/$tf" | teeout
+    if [[ "$act" == "start" ]]; then
+      log "Garantindo listener (install/start) em $sym/$tf" | teeout
       $MTCLI_BIN listener install | tee -a "$alog" || true
-      $MTCLI_BIN listener run --symbol "$sym" --period "$tf" | tee -a "$alog"
+      $MTCLI_BIN listener start --symbol "$sym" --period "$tf" | tee -a "$alog"
     else
-      echo "Uso: agentctl listener ensure <symbol> <tf>"; exit 1
+      echo "Uso: agentctl listener start <symbol> <tf>"; exit 1
     fi
     ;;
   indicator)

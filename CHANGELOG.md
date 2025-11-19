@@ -16,10 +16,10 @@
   - se `data_dir == <terminal_dir>\MQL5` → usa `/portable`.
   - caso contrário → usa `/datapath:<raiz>` (pai do MQL5), garantindo que o Terminal abra exatamente na pasta escolhida (inclusive AppData ou unidades diferentes).
 - Se um default antigo marcar `portable=1` mas o projeto apontar para outra pasta, o CLI ignora o `/portable` e força `/datapath`, evitando quedas involuntárias no AppData.
-- `listener run --trace` agora exibe claramente a linha com `/portable` ou `/datapath`, facilitando auditoria.
+- `listener start --trace` agora exibe claramente a linha com `/portable` ou `/datapath`, facilitando auditoria.
 
 ### Não bloqueante + logs
-- Todos os comandos que tocam o MT retornam imediatamente com um tail curto e um `[done]` (`listener run/status`, `terminal chart attach|detach`, `screenshot`, `install indicator|expert|template|script`, `tester run`, `verify-datapath`, `logs tail`).
+- Todos os comandos que tocam o MT retornam imediatamente com um tail curto e um `[done]` (`listener start/status`, `terminal chart attach|detach`, `screenshot`, `install indicator|expert|template|script`, `tester run`, `verify-datapath`, `logs tail`).
 
 ### Outras notas
 - `config lang set|show` substitui o antigo `mtcli lang ...`.

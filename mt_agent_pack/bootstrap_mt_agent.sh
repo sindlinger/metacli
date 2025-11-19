@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # bootstrap_mt_agent.sh — prepara o ambiente do MT5 para automação
-# Uso: ./bootstrap_mt_agent.sh /caminho/para/mtcli.py
+# Uso: ./bootstrap_mt_agent.sh /caminho/para/pasta_mtcli
 
 if [[ $# -lt 1 ]]; then
-  echo "Uso: $0 /caminho/para/mtcli.py"
+  echo "Uso: $0 /caminho/para/pasta_mtcli"
   exit 1
 fi
 

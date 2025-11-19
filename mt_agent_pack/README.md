@@ -9,8 +9,8 @@ Este pacote cria uma **pasta de trabalho** para um agente (Codex ou equivalente)
 - e usar **hooks** para ações pós-compilação (ex.: anexar em EURUSD/H1 automaticamente).
 
 > Pré-requisitos (no Windows/WSL):
-> - Python 3.9+
-> - `mtcli.py` (seu CLI MT5) acessível
+> - Node.js 18+ e npm (para rodar `mtcli` em TypeScript)
+> - CLI `mtcli` já construído (`npm install && npm run build`, acessível via `bin/mtcli` ou `bin/mtcli.js`)
 > - MetaTrader 5 instalado (terminal64.exe/metaeditor64.exe)
 > - A Data Folder configurada
 > - (Opcional) Pipx para instalar `slash-mql5-cli`
@@ -30,10 +30,10 @@ mt-agent/
 
 ## Uso rápido
 1) **Crie a pasta de trabalho** e extraia este ZIP dentro dela.
-2) Rode o bootstrap (ajuste caminhos quando solicitado):
+2) Rode o bootstrap informando a pasta raiz do `mtcli` (esta mesma):
 ```bash
 chmod +x bootstrap_mt_agent.sh
-./bootstrap_mt_agent.sh /caminho/para/mtcli.py
+./bootstrap_mt_agent.sh /caminho/para/pasta_do_mtcli
 ```
 3) Diga ao agente para usar `agent/mt_agent_e2e.txt` como prompt principal.
 

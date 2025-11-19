@@ -1,5 +1,6 @@
 import path from 'path';
 import os from 'os';
+import fs from 'fs';
 
 export function toWinPath(input: string): string {
   if (/^[A-Za-z]:\\/.test(input)) return input;
@@ -33,5 +34,36 @@ export function normalizePath(input: string): string {
 }
 
 export function platformIsWindows(): boolean {
-  return os.platform() === 'win32';
+  if (os.platform() === 'win32') return true;
+  if (os.platform() === 'linux') {
+    const release = os.release().toLowerCase();
+    if (release.includes('microsoft')) return true;
+    if (process.env.WSL_DISTRO_NAME) return true;
+  }
+  return false;
+}
+
+const POWERSHELL_CANDIDATES = [
+  process.env.POWERSHELL_EXE,
+  'powershell.exe',
+  '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe',
+  '/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe',
+];
+
+export function resolvePowerShell(): string {
+  const isPureWindows = os.platform() === 'win32';
+  for (const candidate of POWERSHELL_CANDIDATES) {
+    if (!candidate) continue;
+    const hasPathSep = candidate.includes('/') || candidate.includes('\\');
+    if (!hasPathSep) {
+      if (isPureWindows) {
+        return candidate;
+      }
+      continue;
+    }
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error('powershell.exe não encontrado. Defina POWERSHELL_EXE ou ajuste os paths padrão.');
 }

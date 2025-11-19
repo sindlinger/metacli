@@ -38,5 +38,5 @@ agent:
 
 ## Notas adicionais
 - Sincronize `mtcli_projects.json` antes de anexar indicadores.
-- Use `./bin/mtcli.js` (TS) ou `python3 mtcli.py` conforme necessário.
+- Use somente `./bin/mtcli.js` (CLI TypeScript) ou `node dist/cli.js` - o runtime Python foi descontinuado.
 - Mantenha histórico de logs, screenshots e troubleshooting em cada intervenção.

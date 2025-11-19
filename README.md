@@ -11,7 +11,7 @@ CLI agnóstico para automação do MetaTrader 5 dentro de projetos. Pode ser cop
   npm install
   npm run build
   ./bin/mtcli.js project init            # cria projeto padrão (Dukascopy)
-  ./bin/mtcli.js listener run            # abre o terminal com listener.ini
+  ./bin/mtcli.js listener start          # abre o terminal com listener.ini
   ./bin/mtcli.js chart indicator attach  # usa defaults do projeto
   ```
 
@@ -20,7 +20,7 @@ CLI agnóstico para automação do MetaTrader 5 dentro de projetos. Pode ser cop
 
 - Grupos de comandos disponíveis:
   - `project`: init/save/show/defaults…
-  - `listener`: run/status/ensure…
+  - `listener`: start/restart/status…
   - `chart`: indicator attach/detach, template apply (com --file ou --name)…
   - `tester`, `editor`, `dll`, `utils`, `config`: stubs prontos para expansão.
 - Todos os comandos leem/escrevem o mesmo `mtcli_projects.json` (compatível com o script Python legado).
@@ -34,7 +34,7 @@ CLI agnóstico para automação do MetaTrader 5 dentro de projetos. Pode ser cop
   bin/mtcli.cmd     # wrapper Windows (CMD)
 ```
 
-- Os wrappers podem chamar `./bin/mtcli.js` diretamente ou `python3 mtcli.py` (legado).
+- Os wrappers chamam `./bin/mtcli.js` diretamente (ou `node dist/cli.js`); não há mais runtime Python.
 - Você pode apontar para outra localização usando a variável de ambiente `MTCLI_ROOT`.
 
 ## Uso rápido
@@ -62,7 +62,7 @@ CLI agnóstico para automação do MetaTrader 5 dentro de projetos. Pode ser cop
 
 ## Dual-mode (MT aberto ou fechado)
 
-- Comandos `chart indicator/template` operam via listener quando ativo; senão, basta iniciar o terminal (`listener run`).
+- Comandos `chart indicator/template` operam via listener quando ativo; senão, basta iniciar o terminal (`listener start`).
 - Sempre retorne logs/screenshots para validar antes e depois.
 
 ## I18N (Language)

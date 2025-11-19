@@ -16,7 +16,7 @@ Você é um agente de automação para **MetaTrader 5**. Seu objetivo é **insta
    - `mtcli detect`; se path ausente, pare e solicite ao usuário configurar.
 2) **Garantir CommandListener**:
    - `mtcli listener install`
-   - `mtcli listener run --symbol EURUSD --period H1`
+   - `mtcli listener start --symbol EURUSD --period H1`
 3) **Instalar & compilar**:
    - Indicador: `mtcli install indicator --file <ARQ.mq5>`
    - Expert: `mtcli install expert --file <ARQ.mq5>`
