@@ -22,6 +22,14 @@ function resolveSubwindow(info: ProjectInfo, fallback?: number) {
   return typeof value === 'number' && !Number.isNaN(value) ? value : 1;
 }
 
+function resolveIndicatorName(info: ProjectInfo, fallback?: string) {
+  const value = fallback ?? (info.defaults?.indicator as string | undefined);
+  if (!value) {
+    throw new Error('Defina --indicator ou configure um padrão via `mtcli project defaults set --indicator <nome>`.');
+  }
+  return value;
+}
+
 async function ensureListenerAndWrite(info: ProjectInfo, command: string) {
   if (!(await isListenerRunning())) {
     await restartListenerInstance({ project: info.project, profile: info.defaults?.profile as string | undefined });
@@ -31,7 +39,8 @@ async function ensureListenerAndWrite(info: ProjectInfo, command: string) {
   if (!dataDir) {
     throw new Error('Projeto sem data_dir configurado.');
   }
-  const fileDir = path.join(dataDir, 'MQL5', 'Files');
+  const dataRoot = normalizePath(dataDir);
+  const fileDir = path.join(dataRoot, 'MQL5', 'Files');
   await fs.ensureDir(fileDir);
   const filePath = path.join(fileDir, 'cmd.txt');
   await fs.writeFile(filePath, command, 'utf8');
@@ -39,13 +48,14 @@ async function ensureListenerAndWrite(info: ProjectInfo, command: string) {
   await printLatestLogFromDataDir(dataDir);
 }
 
-async function copyTemplate(dataDir: string, templatePath: string, target: 'chart' | 'tester') {
+async function copyTemplate(dataDir: string, templatePath: string, target: 'chart' | 'tester'): Promise<string> {
   const src = normalizePath(templatePath);
   if (!(await fs.pathExists(src))) {
     throw new Error(`Template não encontrado: ${src}`);
   }
+  const destRoot = normalizePath(dataDir);
   const destDir = path.join(
-    dataDir,
+    destRoot,
     'MQL5',
     'Profiles',
     target === 'tester' ? 'Tester' : 'Templates'
@@ -54,6 +64,17 @@ async function copyTemplate(dataDir: string, templatePath: string, target: 'char
   const dest = path.join(destDir, path.basename(src));
   await fs.copyFile(src, dest);
   console.log(chalk.green(`[template] ${src} -> ${dest}`));
+  return path.basename(dest);
+}
+
+async function ensureTemplateName(dataDir: string, options: { name?: string; file?: string }, target: 'chart' | 'tester' = 'chart'): Promise<string> {
+  if (options.file) {
+    return copyTemplate(dataDir, options.file, target);
+  }
+  if (options.name) {
+    return options.name;
+  }
+  throw new Error('Informe --name ou --file (template).');
 }
 
 export function registerChartCommands(program: Command) {
@@ -86,6 +107,34 @@ export function registerChartCommands(program: Command) {
     .command('detach')
     .option('--symbol <symbol>')
     .option('--period <period>')
+    .option('--indicator <name>', 'Nome do indicador a remover (usa defaults se omitido)')
+    .option('--subwindow <index>', 'Subjanela', (val) => parseInt(val, 10))
+    .option('--project <id>')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      if (!info.data_dir) {
+        throw new Error('Projeto sem data_dir configurado.');
+      }
+      const symbol = resolveSymbol(info, opts.symbol);
+      const period = resolvePeriod(info, opts.period);
+      const indicatorName = resolveIndicatorName(info, opts.indicator);
+      const subwindow = resolveSubwindow(info, opts.subwindow);
+      if (!symbol || !period) {
+        throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
+      }
+      const cmd = `DETACH_IND;${symbol};${period};${indicatorName};${subwindow}`;
+      await ensureListenerAndWrite(info, cmd);
+    });
+
+  const expert = chart.command('expert').description('Gerencia experts via listener');
+
+  expert
+    .command('attach')
+    .requiredOption('--expert <name>', 'Nome do EA (ex.: Examples\\MACD\\MACD Sample)')
+    .option('--template <tpl>', 'Template (.tpl) já instalado com o EA')
+    .option('--template-file <path>', 'Template (.tpl) a copiar e usar imediatamente')
+    .option('--symbol <symbol>')
+    .option('--period <period>')
     .option('--project <id>')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
@@ -97,7 +146,27 @@ export function registerChartCommands(program: Command) {
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
       }
-      const cmd = `DETACH_IND;${symbol};${period}`;
+      const templateName = await ensureTemplateName(info.data_dir, { name: opts.template, file: opts.templateFile }, 'chart');
+      const cmd = `ATTACH_EA;${symbol};${period};${opts.expert};${templateName}`;
+      await ensureListenerAndWrite(info, cmd);
+    });
+
+  expert
+    .command('detach')
+    .option('--symbol <symbol>')
+    .option('--period <period>')
+    .option('--project <id>')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      if (!info.data_dir) {
+        throw new Error('Projeto sem data_dir configurado.');
+      }
+      const symbol = resolveSymbol(info, opts.symbol);
+      const period = resolvePeriod(info, opts.period);
+      if (!symbol || !period) {
+        throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
+      }
+      const cmd = `DETACH_EA;${symbol};${period}`;
       await ensureListenerAndWrite(info, cmd);
     });
 
@@ -115,23 +184,12 @@ export function registerChartCommands(program: Command) {
       if (!info.data_dir) {
         throw new Error('Projeto sem data_dir configurado.');
       }
-      if (!opts.name && !opts.file) {
-        throw new Error('Informe --name ou --file.');
-      }
       const symbol = resolveSymbol(info, opts.symbol);
       const period = resolvePeriod(info, opts.period);
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
       }
-      let templateName = opts.name;
-      if (opts.file) {
-        const target = 'chart';
-        await copyTemplate(info.data_dir, opts.file, target);
-        templateName = templateName || path.basename(opts.file);
-      }
-      if (!templateName) {
-        throw new Error('Não foi possível determinar o nome do template. Use --name ou --file.');
-      }
+      const templateName = await ensureTemplateName(info.data_dir, { name: opts.name, file: opts.file }, 'chart');
       const cmd = `APPLY_TPL;${symbol};${period};${templateName}`;
       await ensureListenerAndWrite(info, cmd);
     });

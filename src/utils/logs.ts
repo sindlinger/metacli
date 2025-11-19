@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
+import { normalizePath } from './paths.js';
 
 export function tailFile(filePath: string, lines = 40): string {
   if (!fs.existsSync(filePath)) {
@@ -11,8 +12,13 @@ export function tailFile(filePath: string, lines = 40): string {
   return parts.slice(-lines).join('\n');
 }
 
-export function printLatestLogFromDataDir(dataDir: string, limit = 40) {
-  const logDir = path.join(dataDir, 'MQL5', 'Logs');
+export function printLatestLogFromDataDir(dataDir?: string, limit = 40) {
+  if (!dataDir) {
+    console.log('Sem data_dir configurado para leitura de logs.');
+    return;
+  }
+  const root = normalizePath(dataDir);
+  const logDir = path.join(root, 'MQL5', 'Logs');
   if (!fs.existsSync(logDir)) {
     console.log(`Sem logs em ${logDir}`);
     return;
