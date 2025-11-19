@@ -21,7 +21,7 @@ CLI agnóstico para automação do MetaTrader 5 dentro de projetos. Pode ser cop
 - Grupos de comandos disponíveis:
   - `project`: init/save/show/defaults…
   - `listener`: run/status/ensure…
-  - `chart`: indicator attach/detach, template install/apply…
+  - `chart`: indicator attach/detach, template apply (com --file ou --name)…
   - `tester`, `editor`, `dll`, `utils`, `config`: stubs prontos para expansão.
 - Todos os comandos leem/escrevem o mesmo `mtcli_projects.json` (compatível com o script Python legado).
 
@@ -46,9 +46,8 @@ CLI agnóstico para automação do MetaTrader 5 dentro de projetos. Pode ser cop
 # anexa um indicador usando defaults (EURUSD/H1/subwindow=1)
 ./bin/mtcli.js chart indicator attach --indicator WaveSpecZZ_Project/WaveSpecZZ_1.1.0-gpuopt
 
-# instala e aplica template no chart
-./bin/mtcli.js chart template install --file templates/Wave.tpl
-./bin/mtcli.js chart template apply --name Wave.tpl
+# aplica template diretamente (aceita --file ou --name já existente)
+./bin/mtcli.js chart template apply --file templates/Wave.tpl
 ```
 
 ## Estado por projeto

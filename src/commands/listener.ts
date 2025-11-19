@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { ProjectStore, repoRoot } from '../config/projectStore.js';
 import { runCommand } from '../utils/shell.js';
 import { toWinPath, toWslPath, normalizePath } from '../utils/paths.js';
-import { tailFile } from '../utils/logs.js';
+import { printLatestLogFromDataDir } from '../utils/logs.js';
 
 const store = new ProjectStore();
 
@@ -58,24 +58,7 @@ async function showListenerStatus(project?: string) {
   if (!dataDir) {
     throw new Error('data_dir não configurado para este projeto.');
   }
-  const logDir = path.join(dataDir, 'MQL5', 'Logs');
-  if (!(await fs.pathExists(logDir))) {
-    console.log('Pasta de logs não existe ainda. Abra o MT5 pelo menos uma vez.');
-    return;
-  }
-  const files = (await fs.readdir(logDir)).filter((name) => name.endsWith('.log'));
-  if (files.length === 0) {
-    console.log('Nenhum log encontrado em', logDir);
-    return;
-  }
-  files.sort((a, b) => {
-    const aStat = fs.statSync(path.join(logDir, a));
-    const bStat = fs.statSync(path.join(logDir, b));
-    return bStat.mtimeMs - aStat.mtimeMs;
-  });
-  const latest = path.join(logDir, files[0]);
-  console.log(chalk.bold(`Arquivo: ${files[0]}`));
-  console.log(tailFile(latest));
+  await printLatestLogFromDataDir(dataDir);
 }
 
 export function registerListenerCommands(program: Command) {

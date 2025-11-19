@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { ProjectStore, ProjectInfo } from '../config/projectStore.js';
 import { normalizePath } from '../utils/paths.js';
 import { restartListenerInstance } from './listener.js';
+import { printLatestLogFromDataDir } from '../utils/logs.js';
 
 const store = new ProjectStore();
 
@@ -33,6 +34,7 @@ async function restartAndWrite(info: ProjectInfo, command: string) {
   const filePath = path.join(fileDir, 'cmd.txt');
   await fs.writeFile(filePath, command, 'utf8');
   console.log(chalk.green(`Comando gravado em ${filePath}`));
+  await printLatestLogFromDataDir(dataDir);
 }
 
 async function copyTemplate(dataDir: string, templatePath: string, target: 'chart' | 'tester') {
@@ -100,23 +102,9 @@ export function registerChartCommands(program: Command) {
   const template = chart.command('template').description('Gerencia templates (.tpl)');
 
   template
-    .command('install')
-    .requiredOption('--file <path>', 'Arquivo .tpl gerado no MT5')
-    .option('--project <id>')
-    .option('--target <chart|tester>', 'Onde instalar o template', 'chart')
-    .action(async (opts) => {
-      const info = await store.useOrThrow(opts.project);
-      const dataDir = info.data_dir;
-      if (!dataDir) {
-        throw new Error('Projeto sem data_dir configurado.');
-      }
-      const target = opts.target === 'tester' ? 'tester' : 'chart';
-      await copyTemplate(dataDir, opts.file, target);
-    });
-
-  template
     .command('apply')
-    .requiredOption('--name <tpl>', 'Nome do template já instalado (ex.: WaveSpecZZ.tpl)')
+    .option('--name <tpl>', 'Nome do template já instalado (ex.: WaveSpecZZ.tpl)')
+    .option('--file <path>', 'Arquivo .tpl a usar imediatamente')
     .option('--symbol <symbol>')
     .option('--period <period>')
     .option('--project <id>')
@@ -125,12 +113,24 @@ export function registerChartCommands(program: Command) {
       if (!info.data_dir) {
         throw new Error('Projeto sem data_dir configurado.');
       }
+      if (!opts.name && !opts.file) {
+        throw new Error('Informe --name ou --file.');
+      }
       const symbol = resolveSymbol(info, opts.symbol);
       const period = resolvePeriod(info, opts.period);
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
       }
-      const cmd = `APPLY_TPL;${symbol};${period};${opts.name}`;
+      let templateName = opts.name;
+      if (opts.file) {
+        const target = 'chart';
+        await copyTemplate(info.data_dir, opts.file, target);
+        templateName = templateName || path.basename(opts.file);
+      }
+      if (!templateName) {
+        throw new Error('Não foi possível determinar o nome do template. Use --name ou --file.');
+      }
+      const cmd = `APPLY_TPL;${symbol};${period};${templateName}`;
       await restartAndWrite(info, cmd);
     });
 }
