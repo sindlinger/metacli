@@ -2,6 +2,21 @@
 
 CLI agnóstico para automação do MetaTrader 5 dentro de projetos. Pode ser copiado para qualquer repositório.
 
+## Nova CLI em TypeScript (beta)
+
+- O diretório agora contém uma implementação em TypeScript (`src/*.ts`).
+- Para construir o binário Node:
+
+  ```bash
+  npm install
+  npm run build
+  ./bin/mtcli.js --help
+  ```
+
+- O executável `bin/mtcli.js` carrega `dist/cli.js` e funciona tanto no WSL quanto no Windows.
+- Comandos disponíveis (beta): `project show|save|defaults`, `listener run|status|ensure`, `chart indicator attach|detach`.
+- A CLI lê/escreve o mesmo `mtcli_projects.json`, permitindo migração gradual do script Python.
+
 ## Estrutura recomendada
 
 ```text

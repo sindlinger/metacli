@@ -3,3 +3,5 @@ logs/
 mtcli_backups/
 *.log
 grepo/
+node_modules/
+dist/
