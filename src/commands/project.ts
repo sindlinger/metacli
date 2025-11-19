@@ -1,11 +1,46 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { ProjectStore, ProjectDefaults } from '../config/projectStore.js';
+import { restartListenerInstance } from './listener.js';
 
 const store = new ProjectStore();
+const DEFAULT_DATA_DIR = 'C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265';
+const DEFAULT_TERMINAL = 'C:/Dukascopy MetaTrader 5/terminal64.exe';
+const DEFAULT_METAEDITOR = 'C:/Dukascopy MetaTrader 5/MetaEditor64.exe';
+const DEFAULT_LIBS = `${DEFAULT_DATA_DIR}/MQL5/Libraries`;
+const DEFAULTS: ProjectDefaults = {
+  symbol: 'EURUSD',
+  period: 'H1',
+  subwindow: 1,
+  profile: 'Default',
+  portable: false,
+};
 
 export function registerProjectCommands(program: Command) {
   const project = program.command('project').description('Gerencia projetos MT5');
+
+  project
+    .command('init')
+    .description('Cria projeto usando os caminhos padrão deste ambiente')
+    .option('--id <id>', 'Nome do projeto', 'dukas-cli')
+    .option('--no-start-listener', 'Não reinicia o terminal automaticamente')
+    .action(async (opts) => {
+      const payload = {
+        project: opts.id,
+        libs: DEFAULT_LIBS,
+        terminal: DEFAULT_TERMINAL,
+        metaeditor: DEFAULT_METAEDITOR,
+        data_dir: DEFAULT_DATA_DIR,
+        defaults: DEFAULTS,
+      };
+      const saved = await store.setProject(opts.id, payload, true);
+      console.log(chalk.green(`Projeto ${saved.project} inicializado com caminhos padrão.`));
+      if (opts.startListener === false) {
+        console.log('Listener não reiniciado (--no-start-listener).');
+      } else {
+        await restartListenerInstance({ project: saved.project, profile: DEFAULTS.profile ?? undefined });
+      }
+    });
 
   project
     .command('show')
@@ -14,7 +49,7 @@ export function registerProjectCommands(program: Command) {
       const file = await store.show();
       const entries = Object.entries(file.projects);
       if (entries.length === 0) {
-        console.log('Nenhum projeto registrado. Use `mtcli project save --id <nome> ...`');
+        console.log('Nenhum projeto registrado. Use `mtcli project init` ou `project save`.');
         return;
       }
       console.log(chalk.bold('Projeto ativo:'), file.last_project || '(não definido)');
@@ -38,6 +73,7 @@ export function registerProjectCommands(program: Command) {
     .option('--metaeditor <path>', 'metaeditor64.exe')
     .option('--data-dir <path>', 'Pasta de dados (contém MQL5)')
     .option('--set-default', 'Torna este o projeto padrão', false)
+    .option('--launch-listener', 'Reinicia listener ao salvar', false)
     .action(async (opts) => {
       const payload = {
         project: opts.id,
@@ -51,6 +87,9 @@ export function registerProjectCommands(program: Command) {
       }
       const saved = await store.setProject(opts.id, payload, opts.setDefault);
       console.log(chalk.green(`Projeto ${saved.project} salvo.`));
+      if (opts.launchListener && payload.terminal && payload.data_dir) {
+        await restartListenerInstance({ project: saved.project, profile: saved.defaults?.profile ?? undefined });
+      }
     });
 
   const defaults = project.command('defaults').description('Configura opções padrão');

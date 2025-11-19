@@ -15,10 +15,11 @@ export function toWinPath(input: string): string {
 
 export function toWslPath(input: string): string {
   if (input.startsWith('/mnt/')) return input;
-  const match = /^([A-Za-z]):\\(.*)$/.exec(input);
+  const normalized = input.replace(/\\/g, '/');
+  const match = /^([A-Za-z]):\/(.*)$/.exec(normalized);
   if (match) {
     const drive = match[1].toLowerCase();
-    const rest = match[2].replace(/\\/g, '/');
+    const rest = match[2];
     return `/mnt/${drive}/${rest}`;
   }
   return input;
@@ -26,7 +27,8 @@ export function toWslPath(input: string): string {
 
 export function normalizePath(input: string): string {
   if (!input) return input;
-  const replaced = input.replace(/\\/g, path.sep);
+  const wslLike = toWslPath(input);
+  const replaced = wslLike.replace(/\\/g, path.sep);
   return path.resolve(replaced);
 }
 

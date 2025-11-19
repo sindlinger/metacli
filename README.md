@@ -2,60 +2,70 @@
 
 CLI agnóstico para automação do MetaTrader 5 dentro de projetos. Pode ser copiado para qualquer repositório.
 
-## Nova CLI em TypeScript (beta)
+## CLI em TypeScript
 
-- O diretório agora contém uma implementação em TypeScript (`src/*.ts`).
-- Para construir o binário Node:
+- Implementação em TypeScript (`src/*.ts`) com build via `npm run build`.
+- Executável único `./bin/mtcli.js` (funciona em WSL e Windows). Exemplos:
 
   ```bash
   npm install
   npm run build
-  ./bin/mtcli.js --help
+  ./bin/mtcli.js project init            # cria projeto padrão (Dukascopy)
+  ./bin/mtcli.js listener run            # abre o terminal com listener.ini
+  ./bin/mtcli.js chart indicator attach  # usa defaults do projeto
   ```
 
-- O executável `bin/mtcli.js` carrega `dist/cli.js` e funciona tanto no WSL quanto no Windows.
-- Comandos disponíveis (beta): `project show|save|defaults`, `listener run|status|ensure`, `chart indicator attach|detach`.
-- A CLI lê/escreve o mesmo `mtcli_projects.json`, permitindo migração gradual do script Python.
+- `project init` já configura terminal/metaeditor/data_dir e reinicia o listener automaticamente (use `--no-start-listener` para pular).
+- Comandos `chart indicator/template` reiniciam o listener antes de escrever no `cmd.txt`, garantindo que o MT5 esteja pronto.
+
+- Grupos de comandos disponíveis:
+  - `project`: init/save/show/defaults…
+  - `listener`: run/status/ensure…
+  - `chart`: indicator attach/detach, template install/apply…
+  - `tester`, `editor`, `dll`, `utils`, `config`: stubs prontos para expansão.
+- Todos os comandos leem/escrevem o mesmo `mtcli_projects.json` (compatível com o script Python legado).
 
 ## Estrutura recomendada
 
 ```text
 <repo>/
-  mtcli/            # este diretório (mtcli.py, agentctl, etc.)
+  mtcli/            # este diretório (código TS + scripts legados)
   bin/mtcli         # wrapper Bash (Linux/WSL)
   bin/mtcli.cmd     # wrapper Windows (CMD)
 ```
 
-- Os wrappers chamam `python3 mtcli/mtcli.py` (ou `venv/bin/python` se existir um venv).
+- Os wrappers podem chamar `./bin/mtcli.js` diretamente ou `python3 mtcli.py` (legado).
 - Você pode apontar para outra localização usando a variável de ambiente `MTCLI_ROOT`.
 
 ## Uso rápido
 
 ```bash
-# via wrapper
-./bin/mtcli
-./bin/mtcli project init --yes
-./bin/mtcli mt attach --indicator MeuIndicador
+# inicializa projeto usando os caminhos padrão
+./bin/mtcli.js project init
 
-# direto
-python3 mtcli/mtcli.py mt status --repair
+# anexa um indicador usando defaults (EURUSD/H1/subwindow=1)
+./bin/mtcli.js chart indicator attach --indicator WaveSpecZZ_Project/WaveSpecZZ_1.1.0-gpuopt
+
+# instala e aplica template no chart
+./bin/mtcli.js chart template install --file templates/Wave.tpl
+./bin/mtcli.js chart template apply --name Wave.tpl
 ```
 
 ## Estado por projeto
 
 - Cada repositório mantém seu `mtcli_projects.json` (por padrão em `mtcli/mtcli_projects.json`).
-- O `last_project` selecionado vale apenas para o repo onde você está executando.
+- O `last_project` selecionado vale apenas para o repo atual.
 
 ## Integrações úteis
 
-- Terminal: `/config:<ini>`, `/profile:<nome>`, `/portable`. O mtcli gera INI (StartUp) e inicia destacado.
-- MetaEditor: `/compile`, `/log`, `/s` (syntax-check), `/include:<pasta>`.
+- Chart/listener: `/config:<ini>`, `/profile:<nome>`, `/datapath:<pasta>` — o CLI gera o INI e inicia destacado.
+- MetaEditor (placeholder): `/compile`, `/log`, `/include:<pasta>`.
 
 ## Dual-mode (MT aberto ou fechado)
 
-- Comandos `mt attach/detach/apply` operam via listener quando ativo; senão, geram INI + `cmd.txt` e iniciam o Terminal.
-- Sempre retornam um tail de logs padronizado.
-# MTCLI
+- Comandos `chart indicator/template` operam via listener quando ativo; senão, basta iniciar o terminal (`listener run`).
+- Sempre retorne logs/screenshots para validar antes e depois.
+
 ## I18N (Language)
 
 - Current language is stored in `tools/mtcli_config.json` under key `lang`.

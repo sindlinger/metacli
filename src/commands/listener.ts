@@ -9,13 +9,13 @@ import { tailFile } from '../utils/logs.js';
 
 const store = new ProjectStore();
 
-interface ListenerRunOpts {
+export interface ListenerRunOpts {
   project?: string;
   config?: string;
   profile?: string;
 }
 
-async function runListenerInstance(options: ListenerRunOpts) {
+export async function runListenerInstance(options: ListenerRunOpts) {
   const info = await store.useOrThrow(options.project);
   if (!info.terminal) {
     throw new Error('terminal64.exe não configurado no projeto');
@@ -37,6 +37,19 @@ async function runListenerInstance(options: ListenerRunOpts) {
   console.log(chalk.gray(`[listener] ${exe} ${args.join(' ')}`));
   await runCommand(exe, args, { detach: true, stdio: 'ignore' });
   console.log(chalk.green('Terminal iniciado em segundo plano.'));
+}
+
+async function killTerminalProcesses() {
+  try {
+    await runCommand('powershell.exe', ['-Command', 'Get-Process terminal64 -ErrorAction SilentlyContinue | Stop-Process -Force'], { stdio: 'ignore' });
+  } catch {
+    // ignora falhas (processo já fechado)
+  }
+}
+
+export async function restartListenerInstance(options: ListenerRunOpts) {
+  await killTerminalProcesses();
+  await runListenerInstance(options);
 }
 
 async function showListenerStatus(project?: string) {
@@ -85,6 +98,14 @@ export function registerListenerCommands(program: Command) {
     .option('--config <path>')
     .option('--profile <name>')
     .action(async (opts) => runListenerInstance(opts));
+
+  listener
+    .command('restart')
+    .description('Fecha o terminal atual e inicia novamente com listener.ini')
+    .option('--project <id>')
+    .option('--config <path>')
+    .option('--profile <name>')
+    .action(async (opts) => restartListenerInstance(opts));
 
   listener
     .command('status')
