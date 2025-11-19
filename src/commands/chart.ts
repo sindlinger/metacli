@@ -4,7 +4,7 @@ import fs from 'fs-extra';
 import chalk from 'chalk';
 import { ProjectStore, ProjectInfo } from '../config/projectStore.js';
 import { normalizePath } from '../utils/paths.js';
-import { restartListenerInstance } from './listener.js';
+import { restartListenerInstance, isListenerRunning } from './listener.js';
 import { printLatestLogFromDataDir } from '../utils/logs.js';
 
 const store = new ProjectStore();
@@ -22,9 +22,11 @@ function resolveSubwindow(info: ProjectInfo, fallback?: number) {
   return typeof value === 'number' && !Number.isNaN(value) ? value : 1;
 }
 
-async function restartAndWrite(info: ProjectInfo, command: string) {
-  await restartListenerInstance({ project: info.project, profile: info.defaults?.profile as string | undefined });
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+async function ensureListenerAndWrite(info: ProjectInfo, command: string) {
+  if (!(await isListenerRunning())) {
+    await restartListenerInstance({ project: info.project, profile: info.defaults?.profile as string | undefined });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
   const dataDir = info.data_dir;
   if (!dataDir) {
     throw new Error('Projeto sem data_dir configurado.');
@@ -77,7 +79,7 @@ export function registerChartCommands(program: Command) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
       }
       const cmd = `ATTACH_IND;${symbol};${period};${opts.indicator};${subwindow}`;
-      await restartAndWrite(info, cmd);
+      await ensureListenerAndWrite(info, cmd);
     });
 
   indicator
@@ -96,7 +98,7 @@ export function registerChartCommands(program: Command) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
       }
       const cmd = `DETACH_IND;${symbol};${period}`;
-      await restartAndWrite(info, cmd);
+      await ensureListenerAndWrite(info, cmd);
     });
 
   const template = chart.command('template').description('Gerencia templates (.tpl)');
@@ -131,6 +133,6 @@ export function registerChartCommands(program: Command) {
         throw new Error('Não foi possível determinar o nome do template. Use --name ou --file.');
       }
       const cmd = `APPLY_TPL;${symbol};${period};${templateName}`;
-      await restartAndWrite(info, cmd);
+      await ensureListenerAndWrite(info, cmd);
     });
 }

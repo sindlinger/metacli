@@ -6,6 +6,7 @@ import { ProjectStore, repoRoot } from '../config/projectStore.js';
 import { runCommand } from '../utils/shell.js';
 import { toWinPath, toWslPath, normalizePath } from '../utils/paths.js';
 import { printLatestLogFromDataDir } from '../utils/logs.js';
+import { execa } from 'execa';
 
 const store = new ProjectStore();
 
@@ -50,6 +51,15 @@ async function killTerminalProcesses() {
 export async function restartListenerInstance(options: ListenerRunOpts) {
   await killTerminalProcesses();
   await runListenerInstance(options);
+}
+
+export async function isListenerRunning(): Promise<boolean> {
+  try {
+    await execa('powershell.exe', ['-Command', 'Get-Process terminal64 -ErrorAction SilentlyContinue | Out-Null'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function showListenerStatus(project?: string) {

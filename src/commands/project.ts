@@ -23,7 +23,6 @@ export function registerProjectCommands(program: Command) {
     .command('init')
     .description('Cria projeto usando os caminhos padrão deste ambiente')
     .option('--id <id>', 'Nome do projeto', 'dukas-cli')
-    .option('--no-start-listener', 'Não reinicia o terminal automaticamente')
     .action(async (opts) => {
       const payload = {
         project: opts.id,
@@ -35,11 +34,7 @@ export function registerProjectCommands(program: Command) {
       };
       const saved = await store.setProject(opts.id, payload, true);
       console.log(chalk.green(`Projeto ${saved.project} inicializado com caminhos padrão.`));
-      if (opts.startListener === false) {
-        console.log('Listener não reiniciado (--no-start-listener).');
-      } else {
-        await restartListenerInstance({ project: saved.project, profile: DEFAULTS.profile ?? undefined });
-      }
+      await restartListenerInstance({ project: saved.project, profile: DEFAULTS.profile ?? undefined });
     });
 
   project
@@ -73,7 +68,6 @@ export function registerProjectCommands(program: Command) {
     .option('--metaeditor <path>', 'metaeditor64.exe')
     .option('--data-dir <path>', 'Pasta de dados (contém MQL5)')
     .option('--set-default', 'Torna este o projeto padrão', false)
-    .option('--launch-listener', 'Reinicia listener ao salvar', false)
     .action(async (opts) => {
       const payload = {
         project: opts.id,
@@ -87,7 +81,7 @@ export function registerProjectCommands(program: Command) {
       }
       const saved = await store.setProject(opts.id, payload, opts.setDefault);
       console.log(chalk.green(`Projeto ${saved.project} salvo.`));
-      if (opts.launchListener && payload.terminal && payload.data_dir) {
+      if (payload.terminal && payload.data_dir) {
         await restartListenerInstance({ project: saved.project, profile: saved.defaults?.profile ?? undefined });
       }
     });
