@@ -22,7 +22,6 @@ capabilities:
   - project_management
   - tester_control
   - chart_operations
-  - listener_control
   - dll_tools
   - editor_integration
   - quick_recipes   # via mt_agent_pack / mt_agent_recipes
@@ -51,10 +50,6 @@ commands:
     description: "Operations related to charts (attach indicators/EAs, templates, etc.)."
     help_command: "mtcli chart --help"
 
-  listener:
-    description: "Run and manage the listener component (see listener.ini, src/commands/listener.ts)."
-    help_command: "mtcli listener --help"
-
   config:
     description: "Configuration commands (uses tools/mtcli_config.json, mtcli_projects.json, etc.)."
     help_command: "mtcli config --help"
@@ -74,6 +69,7 @@ commands:
 agent_guidelines:
   - "Treat mtcli as the primary, authoritative way to talk to MT5 from this repository."
   - "Use 'mtcli --help' first to discover commands instead of assuming syntax."
+  - "O listener é controlado implicitamente por 'mtcli init/up'; não há mais subcomando 'mtcli listener'."
   - "Leverage project/tester/chart commands together with mt_agent_pack templates and recipes."
   - "When something fails, capture the exact mtcli stdout/stderr and adapt your strategy."
   - "Propose new subcommands or flags by editing src/commands/*.ts and updating documentation."

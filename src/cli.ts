@@ -5,7 +5,6 @@ import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import { registerProjectCommands } from './commands/project.js';
 import { registerInitCommand } from './commands/init.js';
-import { registerListenerCommands } from './commands/listener.js';
 import { registerChartCommands, registerIndicatorCommands, registerExpertCommands } from './commands/chart.js';
 import { registerTesterCommands } from './commands/tester.js';
 import { registerEditorCommands } from './commands/editor.js';
@@ -27,7 +26,6 @@ async function main() {
 
   registerInitCommand(program);
   registerProjectCommands(program);
-  registerListenerCommands(program);
   registerChartCommands(program);
   registerIndicatorCommands(program);
   registerExpertCommands(program);

@@ -234,7 +234,7 @@ The agent is encouraged to:
   - launches the terminal with `listener.ini`, `/datapath`, `/profile`,
   - prints a concise summary plus the latest listener log tail.
 - `mtcli init` must run before any other chart/indicator/expert/tester command. It guarantees the EA listener is attached so the agent can immediately call higher-level commands without manually poking the terminal.
-- The legacy subcommand `mtcli listener ...` remains available for debugging, but the agent should never rely on it during normal operation; all orchestration goes through `mtcli init` + high-level commands.
+- Não existe mais subcomando dedicado `mtcli listener ...` no binário; a orquestração do listener é feita implicitamente por `mtcli init`/`mtcli up` e pelos comandos de alto nível.
 
 ### 3.5. Listener protocol v2 (cmd/resp)
 
