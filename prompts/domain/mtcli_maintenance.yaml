@@ -1,0 +1,18 @@
+topic: mtcli_maintenance
+description: >
+  Guidelines for maintaining and evolving the mtcli CLI used by the agent.
+
+goals:
+  - "Ensure mtcli evolves as a robust, documented CLI."
+  - "Keep mtcli behavior aligned with the agent's needs."
+
+responsibilities:
+  - "Propose new subcommands or options when needed."
+  - "Refactor mtcli code to improve clarity and testability."
+  - "Keep mtcli/docs/*.md in sync with the actual CLI behavior."
+  - "Update prompts/tools/mtcli.yaml when the CLI surface changes."
+
+workflow:
+  - "When a limitation in mtcli is detected, describe the limitation clearly."
+  - "Propose concrete code changes and documentation updates."
+  - "Keep backwards compatibility in mind whenever possible."

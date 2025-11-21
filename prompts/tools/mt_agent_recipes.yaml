@@ -1,0 +1,48 @@
+name: mt_agent_recipes
+description: >
+  High-level shell recipes and pack scripts that orchestrate typical MT5 workflows
+  using mtcli and MetaTrader 5. These scripts live in mt_agent_recipes/ and mt_agent_pack/.
+
+paths:
+  recipes_dir: "./mt_agent_recipes"
+  pack_dir: "./mt_agent_pack"
+  pack_scripts_dir: "./mt_agent_pack/scripts"
+  templates_dir: "./mt_agent_pack/templates"
+
+recipes:
+  expert_full:
+    script: "mt_agent_recipes/expert_full.sh"
+    description: >
+      Full Expert Advisor flow: compile, deploy and (optionally) test an EA using mtcli and MT5.
+    usage_hint: "Call this when the user wants an EA end-to-end: from code to basic validation."
+
+  indicator_full:
+    script: "mt_agent_recipes/indicator_full.sh"
+    description: >
+      Full Indicator flow: compile, deploy and (optionally) smoke-test a custom indicator.
+    usage_hint: "Use this after generating or modifying an indicator in MQL5."
+
+  tester_smoke:
+    script: "mt_agent_recipes/tester_smoke.sh"
+    description: >
+      Lightweight tester smoke check to verify that the MT5 tester wiring and environment are OK.
+    usage_hint: "Use this when there are doubts about environment/tester setup."
+
+quick_tasks:
+  script: "mt_agent_pack/scripts/quick_tasks.sh"
+  description: >
+    Collection of quick helper tasks. The agent should inspect this script and suggest
+    appropriate tasks when the user needs common operations.
+
+templates:
+  ea_sample:
+    path: "mt_agent_pack/templates/EA_Sample.mq5"
+    description: "Sample Expert Advisor template that can be cloned and modified by the agent."
+  indicator_sample:
+    path: "mt_agent_pack/templates/Indicator_Sample.mq5"
+    description: "Sample Indicator template that can be cloned and modified by the agent."
+
+agent_guidelines:
+  - "Use these recipes for high-level flows instead of manually chaining low-level mtcli commands."
+  - "Read the scripts to understand their assumptions (symbols, timeframes, paths)."
+  - "If a recipe is missing for a common workflow, propose a new shell script and update this file."

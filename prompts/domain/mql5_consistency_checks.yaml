@@ -1,0 +1,13 @@
+topic: mql5_consistency_checks
+description: >
+  Checks for consistency between arrays, buffers, and chart output.
+
+checks:
+  - "Ensure that the number of elements written to each buffer matches the number of bars you are processing."
+  - "Verify that all buffers participating in the same calculation use the same indexing orientation (series vs normal)."
+  - "Confirm that timeseries arrays (Open, High, Low, Close, Time) are aligned in their indices."
+  - "When mixing user-defined arrays and built-in time series arrays, explicitly verify whether ArraySetAsSeries was applied."
+
+debugging_tips:
+  - "Log a few bars (e.g., indices 0..5) showing Time, Close, and your indicator buffer values side by side."
+  - "Temporarily simplify calculations to isolate which part of the logic introduces inconsistency."

@@ -1,0 +1,60 @@
+name: docs_offline
+description: >
+  Offline documentation sources for MT5/MQL5, the mtcli CLI, and the agent packs.
+
+sources:
+  - id: repo_readme
+    path: "./README.md"
+    tags: [mtcli, overview]
+
+  - id: repo_agents
+    path: "./AGENTS.md"
+    tags: [agents, workflows]
+
+  # CHANGELOG original foi movido para legacy_docs/ na integração
+  - id: changelog_legacy
+    path: "./legacy_docs/CHANGELOG_legacy.md"
+    tags: [changelog, history]
+
+  - id: mt_agent_pack
+    path: "./mt_agent_pack"
+    tags: [pack, templates, scripts]
+
+  # Exemplo: habilite isto se existir um diretório mt_agent_recipes/
+  # - id: mt_agent_recipes
+  #   path: "./mt_agent_recipes"
+  #   tags: [recipes, automation]
+
+  - id: mtcli_config
+    path: "./tools/mtcli_config.json"
+    tags: [config, mtcli]
+
+  - id: mtcli_projects
+    path: "./tools/mtcli_projects.json"
+    tags: [projects, mtcli]
+
+  - id: mql5_reference_en
+    path: "./docs/mql5_reference/mql5.pdf"
+    tags: [mql5, reference, en]
+
+  - id: mql5_reference_dir
+    path: "./docs/mql5_reference"
+    tags: [mql5, reference, dir]
+
+  - id: mt5_userguide
+    path: "./docs/mt5_userguide"
+    tags: [mt5, platform]
+
+  - id: mtcli_docs
+    path: "./docs"
+    tags: [mtcli, cli, docs]
+
+  - id: legacy_docs
+    path: "./legacy_docs"
+    tags: [legacy, historical, mtcli]
+
+guidelines:
+  - "Use AGENTS.md and mt_agent_pack docs to understand how the CLI is meant to be used by agents."
+  - "Prefer these local docs and configs over web_search when possible."
+  - "When behavior in code (src/ and dist/) diverges from docs, propose documentation updates."
+  - "Use mql5_reference_en as the primary MQL5 language reference when available."

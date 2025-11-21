@@ -1,0 +1,21 @@
+topic: mql5_time_series_arrays
+description: >
+  Distinguishing between time series arrays and standard arrays in MQL5.
+
+built_in_time_series_arrays:
+  - Open[]
+  - High[]
+  - Low[]
+  - Close[]
+  - Time[]
+  - Volume[]
+  - TickVolume[]
+  - Spread[]
+
+operations:
+  - "Use ArraySetAsSeries(array, true) when you want a user-defined array to behave like a time series."
+  - "When ArraySetAsSeries is true, index 0 corresponds to the most recent element, just like built-in price arrays."
+
+checks:
+  - "Before using a user-defined array in OnCalculate, confirm whether it should be treated as a series."
+  - "Keep all related series arrays in a consistent indexing mode to avoid off-by-one mistakes."

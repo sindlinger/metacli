@@ -1,0 +1,27 @@
+sources:
+  mql5_reference:
+    path: docs/mql5_reference
+    type: offline_docs
+    tags: [mql5, reference]
+
+  mql5_reference_en:
+    path: docs/mql5_reference/mql5.pdf
+    type: offline_docs
+    format: pdf
+    language: en
+    tags: [mql5, reference]
+
+  mt5_userguide:
+    path: docs/mt5_userguide
+    type: offline_docs
+    tags: [mt5, platform]
+
+  mtcli_docs:
+    path: docs
+    type: internal_docs
+    tags: [mtcli, cli, docs]
+
+  mtcli_legacy_docs:
+    path: legacy_docs
+    type: internal_docs
+    tags: [mtcli, legacy]

@@ -1,0 +1,11 @@
+name: web_search
+description: >
+  Tool for searching the web when offline documentation is not sufficient.
+
+capabilities:
+  - search
+  - fetch_page
+
+guidelines:
+  - "Prefer official MetaQuotes / MQL5 documentation and reputable sources."
+  - "Summarize and cite sources instead of copying text verbatim."

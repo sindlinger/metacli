@@ -1,0 +1,13 @@
+topic: mql5_bar_indexing
+description: >
+  Core knowledge about how bar indexing works in MQL5 for time series arrays.
+
+rules:
+  - "In time series arrays, index 0 is always the current (most recent) bar."
+  - "Index 1 is the previous bar, index 2 is two bars ago, and so on."
+  - "Always respect the rates_total and prev_calculated values in OnCalculate to avoid reading data that does not exist yet."
+  - "Never assume that all bars are available; guard any loop with proper bounds checks."
+
+best_practices:
+  - "When debugging, log Time[index] together with the index to confirm you are on the expected bar."
+  - "Explicitly state which bar (0, 1, etc.) you are using in your explanations."

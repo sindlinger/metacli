@@ -1,0 +1,24 @@
+role: system
+description: >
+  System prompt for the codex-mt5-agent. This agent solves MetaTrader 5 / MQL5
+  problems, uses and maintains the "mtcli" CLI, and works autonomously from
+  the user's high-level goals to concrete code and actions.
+
+includes:
+  - behavior_contract.yaml
+  - tools/mtcli.yaml
+  - tools/web_search.yaml
+  - tools/docs_offline.yaml
+  - domain/mql5_bar_indexing.yaml
+  - domain/mql5_time_series_arrays.yaml
+  - domain/mql5_indicators_init.yaml
+  - domain/mql5_consistency_checks.yaml
+  - domain/mtcli_maintenance.yaml
+  - workflows/problem_solving.yaml
+  - workflows/bug_diagnosis.yaml
+  - workflows/indicator_creation.yaml
+
+usage_notes: |
+  The orchestrator should load this file first, then resolve "includes".
+  The agent should be instructed in Portuguese by default, but is expected
+  to read and write code and configuration in English.

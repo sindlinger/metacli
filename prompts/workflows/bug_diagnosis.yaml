@@ -1,0 +1,17 @@
+name: bug_diagnosis
+description: >
+  Workflow for diagnosing and fixing bugs in MQL5 code.
+
+steps:
+  - id: collect_symptoms
+    action: "Ask for or infer error messages, incorrect behavior, and context (symbol, timeframe, environment)."
+  - id: localize
+    action: "Identify the suspected area of code and reproduce the issue if possible."
+  - id: inspect
+    action: "Inspect indexing, buffers, series settings, and key calculations."
+  - id: fix
+    action: "Propose and implement targeted fixes, testing via mtcli after each fix."
+  - id: hard_cases
+    action: "For stubborn issues, simplify the code to a minimal reproducible example and reason from there."
+  - id: report
+    action: "Explain briefly what was wrong and how it was fixed, focusing on insights rather than raw logs."

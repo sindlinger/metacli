@@ -1,35 +1,20 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { ProjectStore, ProjectDefaults, ProjectInfo } from '../config/projectStore.js';
-import { printLatestLogFromDataDir } from '../utils/logs.js';
+import { ProjectStore, ProjectDefaults } from '../config/projectStore.js';
 import { restartListenerInstance } from './listener.js';
+import {
+  DEFAULT_AGENT_DATA_DIR,
+  DEFAULT_AGENT_METAEDITOR,
+  DEFAULT_AGENT_TERMINAL,
+  defaultAgentLibs,
+  DEFAULT_AGENT_DEFAULTS,
+  DEFAULT_AGENT_PROJECT_ID,
+} from '../config/agentDefaults.js';
+import { logProjectSummary } from '../utils/projectSummary.js';
 
 const store = new ProjectStore();
-const DEFAULT_DATA_DIR = 'C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265';
-const DEFAULT_TERMINAL = 'C:/Dukascopy MetaTrader 5/terminal64.exe';
-const DEFAULT_METAEDITOR = 'C:/Dukascopy MetaTrader 5/MetaEditor64.exe';
-const DEFAULT_LIBS = `${DEFAULT_DATA_DIR}/MQL5/Libraries`;
-
-function logProjectSummary(info: ProjectInfo) {
-  console.log(chalk.bold(`[project ${info.project}]`));
-  console.log(`  libs: ${info.libs}`);
-  console.log(`  terminal: ${info.terminal || '(não definido)'}`);
-  console.log(`  metaeditor: ${info.metaeditor || '(não definido)'}`);
-  console.log(`  data_dir: ${info.data_dir || '(não definido)'}`);
-  if (info.defaults) {
-    console.log(`  defaults: ${JSON.stringify(info.defaults)}`);
-  }
-  if (info.data_dir) {
-    printLatestLogFromDataDir(info.data_dir, 20);
-  }
-}
-const DEFAULTS: ProjectDefaults = {
-  symbol: 'EURUSD',
-  period: 'H1',
-  subwindow: 1,
-  profile: 'Default',
-  portable: false,
-};
+const DEFAULT_LIBS = defaultAgentLibs();
+const DEFAULTS: ProjectDefaults = { ...DEFAULT_AGENT_DEFAULTS };
 
 export function registerProjectCommands(program: Command) {
   const project = program.command('project').description('Gerencia projetos MT5');
@@ -37,20 +22,21 @@ export function registerProjectCommands(program: Command) {
   project
     .command('init')
     .description('Cria projeto usando os caminhos padrão deste ambiente')
-    .option('--id <id>', 'Nome do projeto', 'dukas-cli')
+    .option('--id <id>', 'Nome do projeto', DEFAULT_AGENT_PROJECT_ID)
     .action(async (opts) => {
+      const dataDir = DEFAULT_AGENT_DATA_DIR;
       const payload = {
         project: opts.id,
-        libs: DEFAULT_LIBS,
-        terminal: DEFAULT_TERMINAL,
-        metaeditor: DEFAULT_METAEDITOR,
-        data_dir: DEFAULT_DATA_DIR,
+        libs: defaultAgentLibs(dataDir),
+        terminal: DEFAULT_AGENT_TERMINAL,
+        metaeditor: DEFAULT_AGENT_METAEDITOR,
+        data_dir: dataDir,
         defaults: DEFAULTS,
       };
       const saved = await store.setProject(opts.id, payload, true);
       console.log(chalk.green(`Projeto ${saved.project} inicializado com caminhos padrão.`));
       await restartListenerInstance({ project: saved.project, profile: DEFAULTS.profile ?? undefined });
-      logProjectSummary(saved);
+      await logProjectSummary(saved);
     });
 
   project
@@ -99,7 +85,7 @@ export function registerProjectCommands(program: Command) {
       console.log(chalk.green(`Projeto ${saved.project} salvo.`));
       if (payload.terminal && payload.data_dir) {
         await restartListenerInstance({ project: saved.project, profile: saved.defaults?.profile ?? undefined });
-        logProjectSummary(saved);
+        await logProjectSummary(saved);
       }
     });
 

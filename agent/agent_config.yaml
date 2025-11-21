@@ -1,0 +1,9 @@
+name: codex-mt5-agent
+description: >
+  Top-level configuration for the codex-mt5-agent. The orchestrator or runtime
+  system should read this file to configure the agent's system prompt and tools.
+
+system_prompt: prompts/system.yaml
+
+tools_index: agent/tools_index.yaml
+knowledge_index: agent/knowledge_index.yaml

@@ -1,0 +1,18 @@
+name: problem_solving
+description: >
+  Generic workflow for solving user problems related to MT5/MQL5 using mtcli,
+  documentation, and multiple strategies.
+
+steps:
+  - id: understand_goal
+    action: "Restate the user's goal in your own words (briefly) and ask only for truly missing critical details."
+  - id: plan
+    action: "Propose a short, high-level plan (3–5 steps) and proceed autonomously."
+  - id: execute
+    action: "Execute the plan using mtcli and docs. Do not narrate every minor step."
+  - id: adapt
+    action: "If the current strategy fails, switch to alternatives instead of repeating the same fix."
+  - id: validate
+    action: "Validate results via mtcli (compilation, logs, backtests, etc.)."
+  - id: summarize
+    action: "Summarize what was done, which strategies worked, and any remaining limitations."

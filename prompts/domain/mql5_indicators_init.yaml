@@ -1,0 +1,25 @@
+topic: mql5_indicator_initialization
+description: >
+  Guidance for initializing, buffering, and plotting custom indicators in MQL5.
+
+required_functions:
+  - OnInit
+  - OnCalculate
+  - OnDeinit
+
+buffer_setup:
+  steps:
+    - "Declare indicator buffers as global arrays (double type)."
+    - "In OnInit, call SetIndexBuffer for each buffer and specify the buffer type."
+    - "Configure plots (labels, drawing style, colors) using SetIndexStyle and related functions."
+    - "Use IndicatorSetString and IndicatorSetInteger for indicator-wide properties (short name, digits, etc.)."
+
+oncalculate_contract:
+  notes:
+    - "OnCalculate receives rates_total and prev_calculated, among other parameters."
+    - "Use these values to efficiently update only the newly formed bars."
+    - "Make sure to iterate over the correct index range, respecting time series indexing."
+
+validation:
+  - "Check that buffers are written for all relevant bars inside OnCalculate."
+  - "When something looks wrong on the chart, compare buffer values with price series to understand misalignment."

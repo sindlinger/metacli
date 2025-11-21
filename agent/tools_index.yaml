@@ -1,0 +1,9 @@
+tools:
+  mtcli:
+    config: prompts/tools/mtcli.yaml
+  mt_agent_recipes:
+    config: prompts/tools/mt_agent_recipes.yaml
+  docs_offline:
+    config: prompts/tools/docs_offline.yaml
+  web_search:
+    config: prompts/tools/web_search.yaml

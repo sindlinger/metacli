@@ -1,0 +1,17 @@
+name: indicator_creation
+description: >
+  Workflow for creating new MQL5 indicators and validating them.
+
+steps:
+  - id: requirements
+    action: "Clarify what the indicator should display (inputs, outputs, timeframe, symbols)."
+  - id: design
+    action: "Design buffers, plots, and core logic, considering time series indexing."
+  - id: implement
+    action: "Write the MQL5 code with clear structure (OnInit, OnCalculate, buffers)."
+  - id: compile
+    action: "Compile the indicator with mtcli and fix any compile-time issues."
+  - id: validate_visual
+    action: "Attach the indicator to a chart (via mtcli or user) and check if the visual output matches expectations."
+  - id: refine
+    action: "Adjust parameters, styling, and performance based on feedback or observed behavior."

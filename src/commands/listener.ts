@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import path from 'path';
 import fs from 'fs-extra';
 import chalk from 'chalk';
-import { ProjectStore, repoRoot } from '../config/projectStore.js';
+import { ProjectStore, ProjectInfo, repoRoot } from '../config/projectStore.js';
 import { runCommand } from '../utils/shell.js';
 import { toWinPath, toWslPath, normalizePath, platformIsWindows, resolvePowerShell } from '../utils/paths.js';
 import { printLatestLogFromDataDir } from '../utils/logs.js';
@@ -16,8 +16,12 @@ export interface ListenerRunOpts {
   profile?: string;
 }
 
-export async function runListenerInstance(options: ListenerRunOpts) {
-  const info = await store.useOrThrow(options.project);
+function psQuoteLiteral(input: string): string {
+  const escaped = input.replace(/'/g, "''");
+  return `'${escaped}'`;
+}
+
+async function runListenerForInfo(info: ProjectInfo, options: ListenerRunOpts) {
   if (!info.terminal) {
     throw new Error('terminal64.exe não configurado no projeto');
   }
@@ -37,11 +41,16 @@ export async function runListenerInstance(options: ListenerRunOpts) {
   const exe = toWslPath(info.terminal);
   console.log(chalk.gray(`[listener] ${exe} ${args.join(' ')}`));
   await runCommand(exe, args, { detach: true, stdio: 'ignore' });
-  if (!(await waitForTerminalStart())) {
+  if (!(await waitForTerminalStart(info.terminal))) {
     throw new Error('Terminal não permaneceu aberto após o restart. Verifique o listener.');
   }
   console.log(chalk.green('Terminal iniciado em segundo plano.'));
   await printLatestLogFromDataDir(dataDir);
+}
+
+export async function runListenerInstance(options: ListenerRunOpts) {
+  const info = await store.useOrThrow(options.project);
+  await runListenerForInfo(info, options);
 }
 
 let cachedPowerShell: string | null = null;
@@ -56,27 +65,30 @@ function powerShellExe(): string {
   return cachedPowerShell;
 }
 
-async function killTerminalProcesses() {
+async function killTerminalProcesses(targetExe?: string) {
   if (!platformIsWindows()) return;
   try {
-    console.log(chalk.gray('[listener] encerrando instâncias atuais de terminal64.exe...'));
-    await runCommand(
-      powerShellExe(),
-      ['-Command', 'Get-Process -Name terminal64 -ErrorAction SilentlyContinue | Stop-Process -Force'],
-      { stdio: 'ignore' }
-    );
+    const script = targetExe
+      ? `
+$path = ${psQuoteLiteral(toWinPath(targetExe))};
+$procs = Get-Process -Name terminal64 -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $path };
+if ($procs) { $procs | Stop-Process -Force }
+`
+      : 'Get-Process -Name terminal64 -ErrorAction SilentlyContinue | Stop-Process -Force';
+    console.log(chalk.gray('[listener] encerrando instâncias atuais do terminal configurado...'));
+    await runCommand(powerShellExe(), ['-NoLogo', '-Command', script], { stdio: 'ignore' });
   } catch {
     // ignora falhas (processo já fechado)
   }
 }
 
-async function ensureTerminalStopped(timeoutMs = 5000) {
+async function ensureTerminalStopped(targetExe?: string, timeoutMs = 5000) {
   if (!platformIsWindows()) return;
   const start = Date.now();
   let attempted = false;
-  while (await isListenerRunning()) {
+  while (await isListenerRunning(targetExe)) {
     attempted = true;
-    await killTerminalProcesses();
+    await killTerminalProcesses(targetExe);
     if (Date.now() - start >= timeoutMs) {
       throw new Error('Não foi possível encerrar terminal64.exe automaticamente. Feche manualmente e tente novamente.');
     }
@@ -88,28 +100,35 @@ async function ensureTerminalStopped(timeoutMs = 5000) {
 }
 
 export async function restartListenerInstance(options: ListenerRunOpts) {
-  await ensureTerminalStopped();
-  await runListenerInstance(options);
+  const info = await store.useOrThrow(options.project);
+  await ensureTerminalStopped(info.terminal);
+  await runListenerForInfo(info, options);
 }
 
-export async function isListenerRunning(): Promise<boolean> {
+export async function isListenerRunning(targetExe?: string): Promise<boolean> {
   if (!platformIsWindows()) return true;
   try {
-    await execa(
-      powerShellExe(),
-      ['-Command', 'if (Get-Process -Name terminal64 -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }'],
-      { stdio: 'ignore' }
-    );
+    const args = targetExe
+      ? [
+          '-NoLogo',
+          '-Command',
+          `
+$path = ${psQuoteLiteral(toWinPath(targetExe))};
+if (Get-Process -Name terminal64 -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $path }) { exit 0 } else { exit 1 }
+`,
+        ]
+      : ['-NoLogo', '-Command', 'if (Get-Process -Name terminal64 -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }'];
+    await execa(powerShellExe(), args, { stdio: 'ignore' });
     return true;
   } catch {
     return false;
   }
 }
 
-async function waitForTerminalStart(timeoutMs = 5000): Promise<boolean> {
+async function waitForTerminalStart(targetExe?: string, timeoutMs = 5000): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    if (await isListenerRunning()) return true;
+    if (await isListenerRunning(targetExe)) return true;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   return false;
@@ -125,8 +144,16 @@ async function showListenerStatus(project?: string) {
   await printLatestLogFromDataDir(dataDir);
 }
 
+function warnLegacy() {
+  console.log(
+    chalk.yellow('[listener] Este comando é legado. Use `mtcli init` para controlar o ambiente sempre que possível.')
+  );
+}
+
 export function registerListenerCommands(program: Command) {
-  const listener = program.command('listener').description('Opera o CommandListenerEA/terminal');
+  const listener = program
+    .command('listener')
+    .description('[LEGACY] Controle manual do CommandListenerEA (prefira `mtcli init`)');
 
   listener
     .command('start')
@@ -135,6 +162,7 @@ export function registerListenerCommands(program: Command) {
     .option('--config <path>', 'Arquivo listener.ini customizado')
     .option('--profile <name>', 'Perfil do MT5', 'Default')
     .action(async (opts) => {
+      warnLegacy();
       await runListenerInstance(opts);
     });
 
@@ -144,13 +172,17 @@ export function registerListenerCommands(program: Command) {
     .option('--project <id>')
     .option('--config <path>')
     .option('--profile <name>')
-    .action(async (opts) => restartListenerInstance(opts));
+    .action(async (opts) => {
+      warnLegacy();
+      await restartListenerInstance(opts);
+    });
 
   listener
     .command('status')
     .description('Mostra o log mais recente do listener')
     .option('--project <id>')
     .action(async (opts) => {
+      warnLegacy();
       await showListenerStatus(opts.project);
     });
 }
