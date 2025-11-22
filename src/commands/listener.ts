@@ -69,7 +69,7 @@ async function killTerminalProcesses() {
   }
 }
 
-async function ensureTerminalStopped(timeoutMs = 5000) {
+export async function ensureTerminalStopped(timeoutMs = 5000) {
   if (!platformIsWindows()) return;
   const start = Date.now();
   let attempted = false;

@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import { execa } from 'execa';
 import { ProjectStore, repoRoot } from '../config/projectStore.js';
 import { normalizePath, platformIsWindows, resolvePowerShell, toWinPath } from '../utils/paths.js';
+import { ensureTerminalStopped, restartListenerInstance } from './listener.js';
 
 const store = new ProjectStore();
 
@@ -222,6 +223,94 @@ export function registerDllCommands(program: Command) {
       reportReleaseArtifacts(releaseDir);
       if (errors > 0) {
         throw new Error('Alguns links falharam. Revise a tabela acima.');
+      }
+    });
+
+  dll
+    .command('gpu-deploy')
+    .description(
+      'Copia a GpuEngine.dll compilada (temp/EngineDLL-GPU) para o MQL5\\\\Libraries do projeto, mantendo o build original livre.'
+    )
+    .option('--project <id>', 'Projeto salvo em mtcli_projects.json')
+    .option('--source <path>', 'Caminho explícito para GpuEngine.dll (default: temp/EngineDLL-GPU/**/GpuEngine.dll)')
+    .option('--restart', 'Reinicia o terminal/listener após a cópia', false)
+    .action(async (opts) => {
+      if (!platformIsWindows()) {
+        throw new Error('dll gpu-deploy foi desenhado para Windows/WSL (terminal64.exe).');
+      }
+
+      const info = await store.useOrThrow(opts.project);
+      if (!info.libs) {
+        throw new Error(`Projeto "${info.project}" não possui libs configurado (MQL5\\Libraries).`);
+      }
+
+      // 1. Resolve origem da DLL (build canônico que fica sempre livre).
+      const customSource = opts.source as string | undefined;
+      let sourceDll: string | undefined;
+      if (customSource) {
+        const candidate = normalizePath(customSource);
+        if (!fs.existsSync(candidate)) {
+          throw new Error(`GpuEngine.dll não encontrada em --source: ${candidate}`);
+        }
+        sourceDll = candidate;
+      } else {
+        const candidates = [
+          path.join(repoRoot(), 'temp', 'EngineDLL-GPU', 'runtime', 'bin', 'GpuEngine.dll'),
+          path.join(repoRoot(), 'temp', 'EngineDLL-GPU', 'Dev', 'bin', 'GpuEngine.dll'),
+        ];
+        for (const candidate of candidates) {
+          const normalized = normalizePath(candidate);
+          if (fs.existsSync(normalized)) {
+            sourceDll = normalized;
+            break;
+          }
+        }
+        if (!sourceDll) {
+          throw new Error(
+            'GpuEngine.dll não encontrada em temp/EngineDLL-GPU/runtime/bin nem em temp/EngineDLL-GPU/Dev/bin. Compile primeiro no EngineDLL-GPU.'
+          );
+        }
+      }
+
+      const libsDir = normalizePath(info.libs);
+      await fsExtra.ensureDir(libsDir);
+      const targetDll = normalizePath(path.join(libsDir, 'GpuEngine.dll'));
+
+      console.log(chalk.bold('\n[gpu-deploy] Preparando ambiente'));
+      console.log(`  Projeto : ${info.project}`);
+      console.log(`  DataDir : ${info.data_dir}`);
+      console.log(`  Libs    : ${toWinPath(libsDir)}`);
+      console.log(`  Origem  : ${toWinPath(sourceDll)}`);
+
+      // 2. Garante que o terminal não está com a DLL carregada.
+      await ensureTerminalStopped();
+
+      // 3. Se já existir uma GpuEngine.dll no MQL5\\Libraries, cria backup versionado.
+      if (fs.existsSync(targetDll)) {
+        const stat = fs.statSync(targetDll);
+        const date = new Date(stat.mtimeMs || Date.now());
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const ts = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(
+          date.getHours()
+        )}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+        const backupName = `GpuEngine_${ts}.dll`;
+        const backupPath = normalizePath(path.join(libsDir, backupName));
+        await fsExtra.copy(targetDll, backupPath);
+        console.log(chalk.gray(`[gpu-deploy] Backup criado: ${toWinPath(backupPath)}`));
+      }
+
+      // 4. Copia a DLL canônica para o MQL5\\Libraries.
+      await fsExtra.copy(sourceDll, targetDll);
+      console.log(chalk.green(`[gpu-deploy] GpuEngine.dll atualizada em ${toWinPath(targetDll)}`));
+
+      // 5. Opcionalmente reinicia o terminal com o listener.
+      if (opts.restart) {
+        console.log(chalk.gray('[gpu-deploy] Reiniciando terminal/listener após deploy...'));
+        await restartListenerInstance({ project: info.project, profile: info.defaults?.profile as string | undefined });
+      } else {
+        console.log(
+          chalk.gray('[gpu-deploy] Deploy concluído. Use `mtcli listener restart` se quiser relançar o terminal agora.')
+        );
       }
     });
 }

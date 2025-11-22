@@ -8,3 +8,15 @@
 - 2025-11-22 (validação GPU): limpei cmd*.txt e anexei `Hub_WavePhaseSD/GPU_WaveViz` via `mtcli indicator add --indicator Hub_WavePhaseSD/GPU_WaveViz --symbol EURUSD --period H1 --subwindow 1`. Log `20251122.log` registra ATTACH_IND às 05:46:10 e 05:46:54 com sucesso (“Indicador ... GPU_WaveViz anexado”). GPU stack operacional.
 
 - 2025-11-22: Ajustei GPU_WaveViz_Solo.mq5 para limitar a exibição a 4 ciclos (mantendo 24 ciclos calculados na GPU) alterando CopyResultsToBuffers; reanexei o indicador via mtcli para recompilar automaticamente e validar no EURUSD H1.
+
+- 2025-11-22 (dll gpu-deploy): implementei no mtcli o comando `dll gpu-deploy` que encerra o `terminal64.exe`, faz backup versionado da `GpuEngine.dll` atual em `MQL5\Libraries\GpuEngine_YYYYMMDD-HHMMSS.dll`, copia a DLL compilada em `temp/EngineDLL-GPU/runtime/bin` (ou `Dev/bin`) para o `libs` do projeto e opcionalmente reinicia o listener/terminal (`--restart`). Usei esse fluxo com o projeto `main-terminal` para garantir deploy consistente da DLL sem travar o arquivo de build.
+
+- 2025-11-22 (WaveViz Solo 4 ciclos + debug): refinei `GPU_WaveViz_Solo.mq5` em `MQL5/Indicators/Hub_WavePhaseSD` (e espelhei em `temp/Hub_WavePhaseSD/Indicators/`) para:
+  - selecionar até 4 ciclos visuais por frame (`max_visual_cycles=4`), priorizando PLV (`g_plvCyclesOut`) e preenchendo faltantes na ordem natural se a PLV não destacar 4 ciclos (fallback);
+  - copiar `wave`/`noise` do último frame usando o span completo (`frame_length * frame_count`) e buffers `_All` (`g_reconAllOut`/`g_cyclesOut`) quando disponíveis;
+  - logar debug com `[WaveViz Solo][DBG] frame_len=... cycles_drawn=... wave_first=...` para validar que FetchResult/CopyResultsToBuffers estão rodando (entrada confirmada no `20251122.log`);
+  - recompilar via MetaEditor64 (`MetaEditor64.exe /compile:...GPU_WaveViz_Solo.mq5 /log:meta_gpu_waveviz.log`), reanexar com `mtcli indicator redraw --indicator Hub_WavePhaseSD/GPU_WaveViz_Solo --symbol EURUSD --period H1 --subwindow 1 --project main-terminal` e gerar screenshot com `mtcli chart screenshot-ind` (`MQL5/Files/screenshots/EURUSD-H1-GPU_WaveViz_Solo-20251122-132823.png`).
+- 2025-11-22: WaveViz Solo init progress + fallback visível (wave/noise preenchidos com preço até chegar 1º frame da GPU; g_hasWaveResult agora é marcado em CopyResultsToBuffers).
+- 2025-11-22: Patch na EngineDLL-GPU (GpuEngineCore.cpp::FetchResult) para ignorar ponteiros de saída inválidos (0xFFFFFFFFFFFFFFFF) vindos do MQL, evitando access violation logo após SubmitJob no GPU_PhaseViz_Solo sem mexer no algoritmo do Kalman.
+- 2025-11-22: Removi o fallback de WaveViz Solo que preenchia wave/noise com o preço (close[]) antes da GPU responder; agora a inicialização mostra apenas o percentual/estado real, sem desenhar linha enganosa.
+- 2025-11-22: Copiei o repo EngineDLL-GPU de temp/EngineDLL-GPU para gpu/EngineDLL-GPU dentro do mtcli, para tratar os fontes da DLL/Kalman como parte do workspace (em vez de só temporário).
