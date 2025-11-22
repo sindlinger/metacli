@@ -1,5 +1,16 @@
 # Changelog — mtcli
 
+# Changelog — mtcli
+
+## 2025-11-20
+
+### Diagnósticos de chart/indicator (Chart* APIs)
+- `chart close`, `chart window-find` e `chart drop-info` expõem direto `ChartClose`, `ChartWindowFind` e `ChartWindowOnDropped`, respeitando os defaults do projeto.
+- `chart template save` envia `ChartSaveTemplate` (nome automático `<symbol>-<period>-YYYYMMDD-HHMMSS.tpl` se não informado).
+- `chart screenshot sweep` dispara séries automáticas pelo `SCREENSHOT_SWEEP` (ChartNavigate + ChartScreenShot), com controle de passos/alinhamento/formato e cópia opcional para um diretório local.
+- Novos utilitários `indicator total`, `indicator name` e `indicator handle` fazem ponte com `ChartIndicatorsTotal`, `ChartIndicatorName` e `ChartIndicatorGet` para depurar janelas específicas.
+- Listener (`CommandListenerEA`) ganhou os comandos `CLOSE_CHART`, `WINDOW_FIND`, `DROP_INFO`, `IND_TOTAL`, `IND_NAME`, `IND_HANDLE` e `SAVE_TPL`, mantendo os logs centralizados no `Experts` log.
+
 ## 2025-11-13
 
 ### Interface reorganizada e execução não bloqueante

@@ -32,7 +32,6 @@ export async function runListenerInstance(options: ListenerRunOpts) {
   const args = [
     `/config:${toWinPath(configPath)}`,
     `/profile:${options.profile || 'Default'}`,
-    `/datapath:${toWinPath(dataDir)}`,
   ];
   const exe = toWslPath(info.terminal);
   console.log(chalk.gray(`[listener] ${exe} ${args.join(' ')}`));

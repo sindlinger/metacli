@@ -1,17 +1,20 @@
 import { Command } from 'commander';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import { registerProjectCommands } from './commands/project.js';
 import { registerListenerCommands } from './commands/listener.js';
-import { registerChartCommands } from './commands/chart.js';
+import { registerChartCommands, registerIndicatorCommands, registerExpertCommands } from './commands/chart.js';
 import { registerTesterCommands } from './commands/tester.js';
 import { registerEditorCommands } from './commands/editor.js';
 import { registerDllCommands } from './commands/dll.js';
 import { registerUtilsCommands } from './commands/utils.js';
 import { registerConfigCommands } from './commands/config.js';
 
-const packageJson = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
 async function main() {
   const program = new Command();
@@ -24,6 +27,8 @@ async function main() {
   registerProjectCommands(program);
   registerListenerCommands(program);
   registerChartCommands(program);
+  registerIndicatorCommands(program);
+  registerExpertCommands(program);
   registerTesterCommands(program);
   registerEditorCommands(program);
   registerDllCommands(program);

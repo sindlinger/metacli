@@ -1,0 +1,10 @@
+# Hub_WavePhaseSD — 2025-11-22
+
+- Contexto: usuário queria localizar/reativar o pacote de indicadores Hub_WavePhaseSD (incluindo GPU_*).
+- Ações: clonei `https://github.com/sindlinger/Hub_WavePhaseSD.git` em `temp/Hub_WavePhaseSD`; copiei Indicators/Experts/Include para `C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265/MQL5` (`Hub_WavePhaseSD` e `Include/GPU`). Reiniciei o listener, anexei o CommandListenerEA via `mtcli expert add --expert CommandListenerEA --template Default.tpl` e depois anexei `Hub_WavePhaseSD/MTF-SD_HighFIbo.v1.3.0` via `mtcli indicator add`.
+- Validação: log `MQL5/Logs/20251122.log` registra o ATTACH_EA 05:26:33 e o ATTACH_IND para `Hub_WavePhaseSD/MTF-SD_HighFIbo.v1.3.0` às 05:26:59 e 05:27:28, finalizando com “Indicador ... anexado em EURUSD H1 sub=1”.
+- Pendências: os indicadores GPU_* e o EA `GPU_EngineHub` importam `GpuEngine.dll`, que não está em `MQL5/Libraries`; precisam da DLL para carregar sem erro. Não gerei screenshots nesta rodada (foco foi instalação/attach).
+- 2025-11-22 (build DLL): clonei `https://github.com/sindlinger/EngineDLL-GPU.git` em `temp/EngineDLL-GPU`; copiei `cudadevrt.lib` (CUDA 13) para `Dev/bin`; configurei com CMake VS17 + CUDA v13.0; build `GpuEngine.dll` Release (arquivos em `Dev/bin`). Copiei `GpuEngine.dll`, `cudart64_13.dll`, `cufft64_12.dll` para `.../MQL5/Libraries`. Service/IPC não usados — apenas a DLL principal para uso direto pelo MQL5.
+- 2025-11-22 (validação GPU): limpei cmd*.txt e anexei `Hub_WavePhaseSD/GPU_WaveViz` via `mtcli indicator add --indicator Hub_WavePhaseSD/GPU_WaveViz --symbol EURUSD --period H1 --subwindow 1`. Log `20251122.log` registra ATTACH_IND às 05:46:10 e 05:46:54 com sucesso (“Indicador ... GPU_WaveViz anexado”). GPU stack operacional.
+
+- 2025-11-22: Ajustei GPU_WaveViz_Solo.mq5 para limitar a exibição a 4 ciclos (mantendo 24 ciclos calculados na GPU) alterando CopyResultsToBuffers; reanexei o indicador via mtcli para recompilar automaticamente e validar no EURUSD H1.

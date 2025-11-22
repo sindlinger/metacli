@@ -2,11 +2,20 @@
   "last_project": "main-terminal",
   "projects": {
     "main-terminal": {
-      "project": "MainTerminal",
-      "libs": "C:\\mql5\\MQL5\\Libraries",
-      "metaeditor": "",
-      "updated_at": "2025-11-11T03:45:00",
-      "created_at": "2025-11-11T03:45:00"
+      "project": "main-terminal",
+      "libs": "C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265/MQL5/Libraries",
+      "metaeditor": "C:/Dukascopy MetaTrader 5/MetaEditor64.exe",
+      "terminal": "C:/Dukascopy MetaTrader 5/terminal64.exe",
+      "data_dir": "C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265",
+      "updated_at": "2025-11-20T08:57:18.653Z",
+      "created_at": "2025-11-13T17:50:24",
+      "defaults": {
+        "symbol": "EURUSD",
+        "period": "H1",
+        "subwindow": 1,
+        "profile": "Default",
+        "portable": false
+      }
     }
   }
 }
