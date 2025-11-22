@@ -1,0 +1,7 @@
+Added warmup-aware flagging and extended the self-test/reporting so early bars stay quarantined and counts are surfaced.
+
+- native-fft/src/fasttransforms.cpp: skip bullish/bearish peak detection on bars marked WARMUP so early-window samples can’t emit reversal arrows.
+- mql5/Scripts/ReversalWaveSelfTest.mq5: self-test now reports length plus bull/bear/low_conf/warmup counts (and avg confidence) per the DLL contract.
+- docs/reversal_wave_pipeline_overview.md: documented the warmup gating in flag extraction and the expanded self-test output.
+
+Tests not run (not requested). Suggested next steps: 1) rebuild/copy the DLL; 2) run mql5/Scripts/ReversalWaveSelfTest.mq5 to verify the new counters; 3) drop the indicator on a chart and confirm warmup bars stay quiet.

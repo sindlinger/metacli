@@ -1,0 +1,293 @@
+TASK: Reversal Wave GPU Pipeline (DLL + MQL5 shells, no heavy logic in MQL5)
+
+You are a coding agent running inside the mtcli-integrado repository.
+
+FOCUS OF THIS TASK
+------------------
+You are responsible for the "reversal wave GPU pipeline":
+
+- All **heavy computation** (FFT, filtros, combinações de sinais) deve ficar dentro da DLL nativa em C++ (núcleo GPU-friendly).
+- O lado **MQL5** (indicadores, scripts, bridges) deve ser o mais fino possível:
+  - apenas coleta dados (Close, Volume, pivôs, padrões 1-2-3),
+  - chama a DLL,
+  - plota resultado no gráfico.
+- NÃO implementar lógica pesada em `.mqh`/`.mq5`. Toda a “inteligência” de cálculo deve estar no lado nativo (C++/GPU).
+
+Este task está alinhado com o agente descrito em `AGENTS.md` (seção de reversal wave / GPU pipeline) e com a documentação em `docs/reversal_wave_pipeline_overview.md`.
+
+
+REPO MAP (RELEVANTE PARA ESTA TAREFA)
+-------------------------------------
+Considere o seguinte layout (ajuste se encontrar diferenças reais rodando `ls`):
+
+- `native-fft/`
+  - `include/fasttransforms.h`
+    - Interface pública do backend nativo (ALGLIB + extensões próprias).
+    - Aqui devem viver:
+      - assinaturas das funções de FFT/conv/corr já existentes,
+      - a interface pública da pipeline de reversal wave, algo como:
+        - `gpu_reversal_wave_process(...)`
+        - `gpu_reversal_wave_synthetic_test(...)`
+      - enums/constantes:
+        - códigos de retorno (OK, invalid argument, internal error, etc.),
+        - flags de modo (high-pass, emphasize pivots, windowing, etc.),
+        - flags de classificação por barra (bull/bear, low confidence, etc.).
+  - `src/fasttransforms.cpp`
+    - Implementação concreta da pipeline:
+      - pré-processamento dos sinais,
+      - detrend/normalização,
+      - aplicação de janelas (Hann ou afins),
+      - FFT/IFFT para extrair componente cíclica,
+      - cálculo de amplitude/fase, confiança e flags de reversão.
+    - Usar as rotinas já existentes de FFT/convolução/correlação do pacote (não reinventar FFT).
+- `mql5/Include/`
+  - `ReversalWaveBridge.mqh`
+    - Apenas:
+      - `#import` da DLL gerada a partir de `native-fft`,
+      - função wrapper simples (por exemplo `bool RWComputeWave(...)`) que:
+        - valida ponteiros/arrays,
+        - chama a função exportada da DLL,
+        - retorna códigos de erro simples ou escreve logs mínimos.
+- `mql5/Indicators/`
+  - `ReversalWave.mq5`
+    - Indicador MT5 “casca fina”:
+      - coleta Close[], Volume[], pivôs (ZigZag / 1-2-3) para um número de barras,
+      - converte para buffers temporários (double[]),
+      - chama `RWComputeWave`,
+      - plota:
+        - linha principal da wave (em torno de 0),
+        - confiança (como linha separada, subjanela ou cor/intensidade),
+        - flags discretos (bull/bear, etc.), se fizer sentido visualizar.
+      - Nenhum FFT, nenhum laço pesado de processamento aqui.
+- `mql5/Scripts/`
+  - `ReversalWaveSelfTest.mq5`
+    - Script simples para:
+      - chamar `gpu_reversal_wave_synthetic_test(...)` via bridge,
+      - verificar se a DLL responde,
+      - opcionalmente escrever alguns valores em log para diagnóstico rápido.
+- `docs/`
+  - `reversal_wave_pipeline_overview.md`
+    - Descreve:
+      - inputs/outputs da pipeline,
+      - significado de cada parâmetro e flag,
+      - contratos de tamanho de arrays (N, janela, warmup),
+      - como integrar com indicadores/scritps MT5,
+      - limitações e pontos abertos.
+
+
+API DE ALTO NÍVEL ESPERADA (C++ / DLL)
+--------------------------------------
+O núcleo desta tarefa é a API exportada pela DLL (C/C++), algo nessa linha:
+
+- Função principal de processamento:
+
+  int gpu_reversal_wave_process(
+      const double* price,        // série de preço (close ou derivada do preço)
+      const double* volume,       // série de volume (podendo ser transformada antes de enviar)
+      const double* pivots,       // série de pivôs (ex.: -1 = fundo, 1 = topo, 0 = neutro)
+      int length,                 // número de amostras em cada vetor
+      int window,                 // janela efetiva análisada (<= length)
+      int modeFlags,              // bitmask de opções (high-pass, enfatizar pivôs, etc.)
+      double priceWeight,         // peso relativo do componente de preço
+      double volumeWeight,        // peso relativo do componente de volume
+      double pivotWeight,         // peso relativo dos pivôs
+      double* outWave,            // saída principal: wave centrada em 0
+      double* outConfidence,      // saída de confiança [0..1] por barra
+      int*    outFlags            // bitmask de flags de classificação por barra
+  );
+
+  - Retornos:
+    - 0 = OK (kResultOK ou nome equivalente).
+    - >0 / <0 = códigos de erro significativos (argumento inválido, problema interno, etc.).
+  - Contratos:
+    - `price`, `volume`, `pivots` têm pelo menos `length` elementos.
+    - `outWave`, `outConfidence`, `outFlags` têm pelo menos `length` elementos.
+    - A função nunca escreve fora desses arrays.
+    - Não faz alocação “selvagem” a cada chamada:
+      - reaproveitar buffers internos onde for viável.
+      - manter a implementação amigável a GPU (memória contígua, strides simples).
+
+- Função auxiliar de teste sintético:
+
+  int gpu_reversal_wave_synthetic_test(
+      int length,
+      double oscillation,
+      double noiseLevel,
+      double* outWave,
+      double* outConfidence,
+      int* outFlags
+  );
+
+  - Gera uma série artificial (preço/volume/pivots) dentro da própria DLL,
+    processa com `gpu_reversal_wave_process` usando parâmetros padrão e
+    escreve os resultados apenas em `outWave`, `outConfidence`, `outFlags`.
+  - Serve para:
+    - validar a pipeline em isolamento (sem MT5),
+    - testes de unidade,
+    - script de autoteste dentro do MT5.
+
+
+PIPELINE LÓGICO (DENTRO DA DLL, NÃO EM MQL5)
+--------------------------------------------
+A lógica abaixo deve ser implementada/ajustada **dentro de `fasttransforms.cpp`**, nunca em `.mq5/.mqh`:
+
+1. Organização e detrend
+   - Receber `price[]`, `volume[]`, `pivots[]` com a mesma orientação (decida o contrato: chronológico 0..N-1).
+   - Normalizar escalas:
+     - preço: remover tendência lenta (por exemplo, regressão linear ou high-pass suave),
+     - volume: escalar por média/desvio ou por algum baseline configurável,
+     - pivots: mapear para -1 (topo), 0 (neutro), +1 (fundo) ou outro esquema consistente.
+   - Combinar em um sinal composto (ex.: combinação linear ponderada, com pesos passados pela API).
+
+2. Janela e FFT/IFFT
+   - Aplicar janela (Hann ou outra) sobre um bloco de tamanho `window`.
+   - Usar FFT real já existente no backend (não implementar FFT na mão).
+   - Aplicar filtros no domínio da frequência:
+     - remoção de componente DC,
+     - opcionalmente limitar banda de interesse (periodicidade mínima/máxima),
+     - aplicar realce de frequências associadas a reversões (se for o caso).
+   - Voltar ao domínio do tempo (IFFT):
+     - recuperar um sinal de “wave” suave, centrado em 0, indicando tendência de reversão.
+
+3. Confiança e flags
+   - A partir da wave processada:
+     - calcular uma métrica de intensidade / coerência (por exemplo, envelope, energia local, etc.)
+       e mapear para `[0..1]` → `outConfidence[i]`.
+     - definir flags discretos em `outFlags[i]`:
+       - bull/bear reversal candidate,
+       - indicar se a barra coincide com pivô importante,
+       - indicar se a confiança é baixa (por exemplo, warmup inicial ou ruído forte).
+   - Invariantes:
+     - `outWave[i]` deve ser utilizável diretamente como linha de indicador em torno de 0.
+     - `outConfidence[i]` deve ser estável (sem explosões numéricas).
+     - `outFlags[i]` deve ser estável em termos de semântica (não mudar bits a cada refatoração, a não ser que docs e bridge sejam atualizados).
+
+4. Performance e GPU-friendly
+   - Evitar alocações repetidas em cada chamada.
+   - Garantir acesso a memória contíguo e previsível (bom para GPU e CPU).
+   - Isolar o pipeline em funções bem nomeadas, fáceis de portar para uma implementação GPU real no futuro.
+
+
+MQL5 SIDE: BRIDGE + INDICADOR + SCRIPT
+--------------------------------------
+Regras importantes:
+
+- **NENHUMA** FFT, convolução, correlação, ou laço pesado de análise em `.mq5`/`.mqh`.
+- O fluxo em MQL5 deve ser:
+
+  1. Coletar dados das séries nativas (Close, Volume, ZigZag / 1-2-3, etc.).
+  2. Preencher arrays temporários do tipo `double price[]`, `double volume[]`, `double pivots[]`.
+  3. Chamar a função importada da DLL:
+     - `gpu_reversal_wave_process(...)` ou via helper como `RWComputeWave(...)`.
+  4. Copiar resultados (`outWave`, `outConfidence`, `outFlags`) para buffers de indicador e/ou exibir em log.
+
+- Em `ReversalWaveBridge.mqh`:
+  - manter somente a camada de interoperabilidade (assinaturas `#import`, conversão mínima de tipos),
+  - tratamento simples de erros: se a DLL retorna erro ≠ 0, logar uma mensagem clara com o código e abortar o cálculo daquele tick.
+
+- Em `ReversalWave.mq5`:
+  - a lógica de `OnCalculate` deve:
+    - respeitar `rates_total` / `prev_calculated`,
+    - atualizar somente a faixa necessária de barras,
+    - delegar processamento completo à DLL.
+  - nenhuma manipulação complicada de pivôs / 1-2-3 dentro do próprio indicador:
+    - se precisar de pré-processamento, prefira movê-lo para o lado da DLL (ou organizar para enviar pivôs já pré-computados).
+
+- Em `ReversalWaveSelfTest.mq5`:
+  - chamar apenas a função de teste sintético,
+  - opcionalmente:
+    - plotar alguns valores em buffers de indicador temporário,
+    - ou escrever no log linhas do tipo: `i, wave[i], conf[i], flags[i]`.
+
+
+CONTRATOS / INVARIANTES QUE NÃO PODEM QUEBRAR
+---------------------------------------------
+Sempre que você modificar o pipeline, verifique e preserve estes pontos:
+
+1. Assinaturas públicas em `fasttransforms.h`
+   - Não quebrar assinaturas já existentes sem:
+     - atualizar `ReversalWaveBridge.mqh`,
+     - ajustar `ReversalWave.mq5`,
+     - atualizar `docs/reversal_wave_pipeline_overview.md`.
+
+2. Semântica de flags e códigos de retorno
+   - Flags (bitmasks) devem manter nomes e significados consitentes ao longo do tempo.
+   - Códigos de retorno:
+     - 0 significa sucesso.
+     - Erros devem ser consistentes: invalid arg, internal failure, etc.
+
+3. Estabilidade numérica
+   - Evitar overflow/underflow,
+   - Tratar entradas degeneradas:
+     - `length` pequeno,
+     - arrays com NaN / inf / constantes,
+     - volume zero.
+
+4. Nenhum “desvio de responsabilidade” para MQL5
+   - Se perceber que alguma lógica pesada foi empurrada para o indicador/script, traga de volta para a DLL.
+
+
+SEU FLUXO DE TRABALHO NESTA TAREFA
+----------------------------------
+Sempre que rodar este TASK dentro do `mtcli-integrado`:
+
+1. Entender o estado atual
+   - Rodar comandos leves para inspecionar o repo, por exemplo:
+     - `ls`
+     - `ls native-fft`
+     - `sed -n '1,200p' native-fft/include/fasttransforms.h`
+     - `grep -n "gpu_reversal_wave" -R .`
+   - Ler:
+     - `AGENTS.md` (seção de reversal wave / GPU),
+     - `docs/reversal_wave_pipeline_overview.md`,
+     - `mql5/Include/ReversalWaveBridge.mqh`,
+     - `mql5/Indicators/ReversalWave.mq5`,
+     - `mql5/Scripts/ReversalWaveSelfTest.mq5`.
+
+2. Planejar
+   - Escrever um plano curto (3–7 passos) antes de editar qualquer arquivo.
+   - Manter o plano alinhado com:
+     - “todo processamento pesado na DLL”,
+     - uso de FFT/convolução já existentes,
+     - estabilidade da interface pública.
+
+3. Implementar
+   - Editar **apenas** os arquivos relevantes:
+     - `native-fft/include/fasttransforms.h`
+     - `native-fft/src/fasttransforms.cpp`
+     - `mql5/Include/ReversalWaveBridge.mqh`
+     - `mql5/Indicators/ReversalWave.mq5`
+     - `mql5/Scripts/ReversalWaveSelfTest.mq5`
+     - `docs/reversal_wave_pipeline_overview.md`
+   - Não modificar outros componentes do CLI ou de mtcli sem necessidade clara.
+
+4. Validar
+   - Sempre que possível:
+     - verificar compilações básicas (por exemplo, se houver scripts de build para a DLL),
+     - manter o código C++ compilável (sem erros óbvios).
+   - No nível conceitual:
+     - checar se as invariantes de contrato continuam verdadeiras,
+     - garantir que nenhuma lógica pesada foi parar em MQL5.
+
+5. Resumir
+   - No final, produzir um resumo objetivo:
+     - quais arquivos foram modificados,
+     - o que mudou em alto nível,
+     - como o pipeline funciona agora (inputs → processamento → outputs),
+     - quais são os próximos passos sugeridos (se houver).
+
+
+ESTILO DE COMUNICAÇÃO COM O USUÁRIO
+-----------------------------------
+- Linguagem natural padrão: português (pt-BR).
+- Código e nomes de símbolos: inglês (C++/MQL5).
+- Não narrar cada micro passo, mas:
+  - explicar claramente o plano,
+  - destacar decisões importantes de design,
+  - explicar quaisquer mudanças de contrato ou comportamento.
+
+- Evitar jargão desnecessário; focar em:
+  - “o que entra”,
+  - “o que sai”,
+  - “por que o resultado ajuda a encontrar reversões”,
+  - “como isso se conecta ao MT5 e ao indicador”.

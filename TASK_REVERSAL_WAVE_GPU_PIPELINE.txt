@@ -1,0 +1,422 @@
+==================== TASK_REVERSAL_WAVE_GPU_PIPELINE.txt ====================
+
+TITLE: Reversal Wave GPU Pipeline – DLL + MQL5 integration
+
+GOAL:
+Implementar e refinar uma pipeline de “Reversal Wave” em DLL nativa (CPU hoje, GPU‑friendly para amanhã), integrada ao MT5 via MQL5, para detectar pontos de reversão (topos/fundos) usando preço, volume e pivôs (ZigZag + padrões 1‑2‑3).
+O indicador no MT5 deve exibir a wave contínua, a confiança e flags discretas bull/bear, já “afinados” o suficiente para uso experimental em conta demo.
+
+1. Contexto
+
+O repositório mtcli-integrado já possui:
+
+ALGLIB/fasttransforms (FFT, FHT, convolução, correlação etc.).
+
+Estrutura para DLL em native-fft/.
+
+Pastas de integração MT5 em mql5/.
+
+Esta task é especializada no pipeline de reversão (Reversal Wave) e na exposição dessa wave para o MT5 via DLL.
+
+2. Contrato da API da DLL
+2.1. Função principal
+
+Assuma que a DLL exporta a seguinte função C (C ABI):
+
+```
+int gpu_reversal_wave_process(
+    const double* price,
+    const double* volume,
+    const double* pivots,
+    int length,
+    int window,
+    int modeFlags,
+    double priceWeight,
+    double volumeWeight,
+    double pivotWeight,
+    double* outWave,
+    double* outConfidence,
+    int* outFlags
+);
+```
+
+Entradas
+
+price[i]
+Série de preço (por ex. Close) em ordem cronológica, do mais antigo (i=0) para o mais recente (i=length-1).
+
+volume[i]
+Série de volume na mesma ordem.
+
+pivots[i]
+Codificação discreta de pivôs:
+
++1 → topo (ZigZag ou padrão 1‑2‑3 de venda),
+
+-1 → fundo (ZigZag ou padrão 1‑2‑3 de compra),
+
+0 → barra normal (sem pivô).
+
+length
+Tamanho das séries (todas têm o mesmo tamanho).
+
+window
+Tamanho da janela de processamento local (em barras).
+Usado para detrend, normalização, confiança e outras operações “locais”.
+
+modeFlags (bitmask)
+Combinação por OR bit a bit de modos da pipeline, por exemplo:
+
+kModeHighPass – remove tendências de período maior que a janela.
+
+kModeEmphasizePivot – dá mais peso a barras marcadas em pivots.
+
+kModeUseHannWindow – aplica janela de Hann antes da FFT.
+
+kModeUseBandPass – aplica filtro passa‑banda em frequência.
+
+(outros modos podem ser adicionados conforme evolução).
+
+priceWeight, volumeWeight, pivotWeight
+Pesos relativos de cada canal na construção do sinal composto.
+Podem ser normalizados internamente (por ex. forçar soma ≈ 1).
+
+Saídas
+
+outWave[i]
+Valor contínuo da wave de reversão, centrada em 0, idealmente:
+
+valores positivos → contexto mais para topo / sobrecompra,
+
+valores negativos → contexto mais para fundo / sobrevenda.
+
+outConfidence[i]
+Escalar em [0.0, 1.0] indicando quão confiável é o sinal naquela barra:
+
+0.0 → sem confiança (ignorar),
+
+1.0 → muito forte / claro.
+
+outFlags[i]
+Bitmask discreto com flags como:
+
+kFlagBullish – provável fundo (reversão de compra).
+
+kFlagBearish – provável topo (reversão de venda).
+
+kFlagLowConf – confiança baixa (sinal frágil).
+
+kFlagWarmup – barras iniciais, janela de aquecimento (não confiar).
+
+Valor de retorno
+
+0 → sucesso.
+
+< 0 → algum erro:
+
+argumentos inválidos (ponteiro nulo, length/window ≤ 0),
+
+buffers de saída nulos,
+
+falha interna (exceção, erro numérico, etc.).
+
+2.2. Função auxiliar de teste sintético
+
+int gpu_reversal_wave_synthetic_test(
+    int length,
+    double oscillation,
+    double noiseLevel,
+    double* outWave,
+    double* outConfidence,
+    int* outFlags
+);
+
+Gera internamente uma série sintética (senoide + ruído branco, com volume e pivôs coerentes).
+
+Roda a mesma pipeline usada em gpu_reversal_wave_process.
+
+Permite testar a DLL via um script MQL5 sem depender de dados do servidor.
+
+
+3. Pipeline numérico (dentro da DLL)
+3.1. Sanitização e ordenação dos dados
+
+Garantir que:
+
+price, volume, pivots são tratados como cronológicos.
+
+Qualquer NaN ou Inf é convertido para 0 (ou valor neutro razoável).
+
+Opcionalmente, detetar intervalos muito curtos (length < window) e marcar tudo como WARMUP.
+
+3.2. Detrend e normalização
+
+Sobre a série de preço (e/ou sinal composto):
+
+remover componente de tendência lenta:
+
+por exemplo, ajustar uma reta por regressão linear numa janela deslizante e subtrair;
+
+ou remover média + componente linear (detrend clássico).
+
+normalizar amplitude (ex.: desvio padrão por janela) para evitar saturação da wave.
+
+Objetivo: produzir um sinal oscilatório em torno de zero, compatível com FFT e interpretação de reversão.
+
+3.3. Construção do sinal composto
+
+Combinar:
+
+preço detrended,
+
+volume normalizado (por ex. z-score ou volume relativo à média),
+
+pivôs (ZigZag + padrões 1‑2‑3) transformados em um canal discreto (+1, 0, -1).
+
+Exemplo:
+
+signal[i] =
+    priceWeight  * price_detrended[i] +
+    volumeWeight * volume_norm[i]     +
+    pivotWeight  * pivots[i];
+
+
+Podem ser usadas variações mais sofisticadas, desde que:
+
+fiquem todas dentro da DLL,
+
+sejam determinísticas e estáveis numericamente,
+
+respeitem o contrato da API.
+
+3.4. Filtros espectrais (FFT/FHT)
+
+Aplicar transformada (FFT ou FHT) à série ou janelas da série:
+
+aplicar janela de Hann/Hamming se kModeUseHannWindow estiver ligado;
+
+aplicar band-pass / high-pass conforme modeFlags.
+
+Voltar ao domínio do tempo com IFFT/FHT.
+
+O resultado filtrado deve:
+
+preservar os momentos de reversão relevantes,
+
+reduzir ruído de alta frequência excessivo,
+
+remover tendências muito lentas se solicitado.
+
+3.5. Cálculo de confiança
+
+Estimar confiança por barra com base, por exemplo, em:
+
+quão forte é o pivô,
+
+quão alinhado está o sinal composto com o filtro,
+
+energia relativa da frequência alvo versus ruído.
+
+Normalizar confiança para [0,1].
+
+Marcar kFlagLowConf quando outConfidence[i] abaixo de um limiar (ex.: 0.3–0.4).
+
+3.6. Geração de flags de reversão
+
+Detectar vales e picos na wave filtrada:
+
+vales (mínimos locais) → candidatos a kFlagBullish.
+
+picos (máximos locais) → candidatos a kFlagBearish.
+
+Modulação por confiança:
+
+se confiança muito baixa, não marcar flag (ou marcar LOW_CONF sem bull/bear).
+
+Marcar kFlagWarmup nas primeiras window barras (e, se necessário, nas últimas).
+
+4. Regras rígidas: GPU/DLL vs MQL5
+4.1. Implementar em C++ (DLL / GPU-friendly)
+
+Deve estar na DLL:
+
+Detrend (reta, média móvel com remoção de tendência, etc.).
+
+Normalização de amplitude.
+
+Construção do sinal composto (preço + volume + pivôs + 1‑2‑3).
+
+FFT/FHT, filtros espectrais, convoluções, correlações.
+
+Cálculo de confiança (outConfidence).
+
+Detecção de reversão e montagem de bitmask outFlags.
+
+4.2. Implementar em MQL5 (cola)
+
+Pode estar em MQL5:
+
+Coleta de:
+
+Close[],
+
+Volume[],
+
+buffers de ZigZag,
+
+detecção simples de padrão 1‑2‑3 (se não estiver na DLL).
+
+Mapeamento para pivots[i] (+1, 0, -1).
+
+Chamada à DLL via #import (ReversalWaveBridge.mqh).
+
+Preenchimento de buffers de indicador:
+
+BufferWave[],
+
+BufferConfidence[],
+
+BufferBull[] / BufferBear[] (setas),
+
+etc.
+
+Desenho no gráfico (styles, cores, larguras).
+
+NÃO pode estar em MQL5:
+
+FFT/FHT, convolução, correlação.
+
+Lógica complexa de detrend / filtragem de banda.
+
+Cálculo de confiança complexo.
+
+Logica pesada (loops O(N log N), O(N²)).
+
+5. Integração MQL5 esperada
+5.1. Bridge
+
+Arquivo: mql5/Include/ReversalWaveBridge.mqh
+
+Responsabilidades:
+
+Fazer #import da DLL:
+
+gpu_reversal_wave_process(...),
+
+gpu_reversal_wave_synthetic_test(...).
+
+Expor função helper:
+
+bool RWComputeWave(...) que:
+
+monta os arrays,
+
+chama a DLL,
+
+retorna true/false conforme sucesso.
+
+Expor helpers:
+
+bool RWIsBullish(int flags);
+
+bool RWIsBearish(int flags);
+
+bool RWIsLowConf(int flags);
+
+bool RWIsWarmup(int flags);
+
+5.2. Indicador
+
+Arquivo: mql5/Indicators/ReversalWave.mq5
+
+Responsabilidades:
+
+Inputs:
+
+janela (window),
+
+modeFlags (como inteiros/enum),
+
+pesos de preço/volume/pivô,
+
+parâmetros cosméticos (cores, espessuras, etc.).
+
+No OnCalculate:
+
+coletar os dados,
+
+montar price[], volume[], pivots[],
+
+chamar RWComputeWave(...),
+
+preencher buffers:
+
+wave,
+
+confiança,
+
+setas bull/bear usando outFlags.
+
+Não recalcular nada que já foi feito na DLL.
+
+5.3. Script de autoteste
+
+Arquivo: mql5/Scripts/ReversalWaveSelfTest.mq5
+
+Responsabilidades:
+
+Chamar gpu_reversal_wave_synthetic_test(...).
+
+Contar quantos:
+
+bull,
+
+bear,
+
+low_conf,
+
+warmup.
+
+Logar para Journal/Experts, por exemplo:
+
+“ReversalWaveSelfTest: length=512, bull=23, bear=24, low_conf=10, warmup=64”.
+
+6. Critério de conclusão (“wave pronta exibindo e afinada”)
+
+Considere a task concluída somente quando:
+
+A DLL compila e exporta corretamente as funções da seção 2.
+
+ReversalWaveSelfTest.mq5 roda sem erro, gera logs coerentes e não produz NaN/Inf.
+
+ReversalWave.mq5 pode ser anexado a qualquer gráfico (vários símbolos/timeframes) sem:
+
+crash,
+
+freeze,
+
+outputs absurdos (explosão numérica).
+
+A wave:
+
+oscila em torno de 0,
+
+marca reversões em pontos que façam sentido frente ao ZigZag e padrões 1‑2‑3,
+
+reage de forma razoável à mudança de parâmetros (window, modeFlags, pesos).
+
+A documentação em docs/reversal_wave_pipeline_overview.md:
+
+explica o contrato da DLL,
+
+explica parâmetros,
+
+explica interpretação visual do indicador.
+
+Quando tudo isso estiver atendido, o agente pode reportar a task como concluída.
+
+
+
+::contentReference[oaicite:1]{index=1}
+
+

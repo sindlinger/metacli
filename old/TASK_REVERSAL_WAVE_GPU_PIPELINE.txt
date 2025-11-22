@@ -1,0 +1,324 @@
+TAREFA: Projetar e implementar um pipeline de “reversal wave” (onda de reversão) usando FFT/ALGLIB + DLL + MQL5, preparado para GPU
+
+------------------------------------------------------------
+1. CONTEXTO DO PROJETO
+------------------------------------------------------------
+
+Você está rodando dentro de um projeto de MT5/MQL5 com um CLI chamado `mtcli` (Node/TypeScript) e um conjunto de indicadores/infra em MQL5.
+
+Já existem:
+
+- Um conjunto de arquivos C++ com ALGLIB FastTransforms, por exemplo:
+  - `fasttransforms.cpp`
+  - `fasttransforms.h`
+- Arquivos MQL5 relacionados a FFT/cluster/PRZ/market profile, por exemplo:
+  - `fiboprz_v3.25.cpu.accum.mq5`
+  - `FFTBridge.mqh`
+  - `ClusterManager.mqh`
+  - `ChartOverlayService.mqh`
+  - `MarketProfileRenderer.mqh`
+  - `FiboUtils.mqh`
+  - `PivotPipeline.mqh`
+  - `Renderer.mqh`
+  - `Types.mqh`
+  - `LabelManager.mqh`
+
+O objetivo desta tarefa **não** é mexer no “indicador de clusters PRZ” antigo (isso agora é secundário), mas sim:
+
+> Projetar e implementar uma ou mais “waves” (ondas) que representem, ao longo do tempo, a força de reversão (compra/venda) derivada de:
+> - zigzag (topos/fundos),
+> - padrão de candles 1-2-3 (compra/venda),
+> - anomalias de volume,
+> usando FFT/convolução em cima de séries *detrended*, com C++ (ALGLIB) no backend e MQL5 no front.
+
+A arquitetura ideal:
+
+- **MQL5 indicador** manda 1 ou mais séries de entrada para uma **DLL C++**;
+- A DLL faz:
+  - detrend + normalização,
+  - transformada (FFT / FHT / convolução),
+  - filtragem (ex.: band-pass, smoothing, realce de periodicidades),
+  - combinação das fontes (zigzag + candles + volume) em uma ou mais “waves” **em torno de zero**;
+- A DLL devolve, para cada barra, um valor (ou vetor de valores) que o indicador MQL5 vai plotar como:
+  - onda(s) contínua(s) ao longo do tempo,
+  - positiva(s) para pressão de compra (reversão para cima),
+  - negativa(s) para pressão de venda (reversão para baixo).
+
+O pipeline deve ser escrito inicialmente para **CPU** (usando ALGLIB FFT/convolução), mas:
+- com interface clara o suficiente para, depois, ser portado para GPU (CUDA/OpenCL ou outra solução),
+- mantendo a assinatura externa (funções exportadas para MQL5) estável.
+
+------------------------------------------------------------
+2. RESTRIÇÕES IMPORTANTES (NON-NEGOTIABLE)
+------------------------------------------------------------
+
+1. **Sem repaint / sem olhar para o futuro**
+   - Nenhum cálculo pode usar informações de barras “futuras” para determinar o valor da wave nas barras passadas.
+   - Se for necessário esperar 1–2 barras para confirmar um padrão (zigzag, candle 1-2-3, etc.), tudo bem: os eventos podem chegar atrasados, mas **não podem ser reescritos no passado**.
+   - Garanta que a lógica faça sentido dentro do modelo de `OnCalculate`:
+     - respeitar `rates_total` e `prev_calculated`;
+     - trabalhar sempre com índices em série temporal (0 = barra mais recente).
+
+2. **Sinal em torno de zero**
+   - As waves devem oscilar em torno de 0.
+   - Idealmente:
+     - valores positivos ⇒ pressão de reversão para compra,
+     - valores negativos ⇒ pressão de reversão para venda,
+     - valores próximos de 0 ⇒ ausência de sinal forte.
+
+3. **Detrend antes de ir para o domínio da frequência**
+   - As séries (preço/derivados) precisam ser “sem tendência” antes de aplicar FFT/convolução.
+   - Evite simplesmente usar média móvel como detrend. Prefira:
+     - regressão linear (L2) em janela deslizante ou
+     - outra técnica que remova o “drift” sem distorcer muito as oscilações locais.
+   - O objetivo é deixar a série **oscilando em torno de zero**, com a componente de baixa frequência (tendência longa) removida, para que a FFT capture melhor periodicidades e ciclos.
+
+4. **Nada de supor periodicidade onde não há**
+   - Use **convolução/FFT com zero-padding**, e não assumindo que a série fecha em círculo perfeita (a menos que você tenha uma boa razão).
+   - Circular convolution/correlation só deve ser usada se a interpretação fizer sentido (sinal realmente periódico).
+
+5. **Seguro para usar em tempo real**
+   - Todo código deve ser robusto para:
+     - tamanhos de janela variáveis,
+     - dados com NaN ou zero volume,
+     - períodos de mercado com baixa liquidez,
+     - reconexão do terminal.
+   - Tratamento de erros explícito:
+     - checar tamanho dos arrays,
+     - checar parâmetros,
+     - retornar códigos de erro claros para MQL5 (ex.: -1, enum, etc).
+
+6. **Interface C++/DLL amigável para MQL5**
+   - Funções exportadas devem usar assinaturas com `double*` / `int` simples e/ou structs “plain old data” (POD).
+   - Use `extern "C"` e `__declspec(dllexport)` (Windows) para garantir que MQL5 consiga importar.
+   - Evitar alocações dinâmicas frenéticas dentro da DLL; trabalhar preferencialmente com buffers pré-alocados e tamanhos fixos controlados pelo chamador (MQL5).
+
+------------------------------------------------------------
+3. OBJETIVO ESPECÍFICO: “REVERSAL WAVE(S)”
+------------------------------------------------------------
+
+Queremos **1 ou mais waves** que sintetizem as informações de reversão de:
+
+1. **ZigZag / pivôs (topos e fundos)**
+   - A partir de um zigzag existente (ou pipeline de pivôs), construir um sinal discreto ao longo das barras, por exemplo:
+     - +1 quando há pivô de fundo confirmado (potencial reversão para cima),
+     - -1 quando há pivô de topo confirmado (potencial reversão para baixo),
+     - 0 caso contrário.
+   - Esse sinal pode ser “sustentado” entre pivôs (ex.: repetir o último valor até o próximo pivô), ou impulsivo (pulsos em torno dos eventos); escolha a abordagem mais adequada e documente a decisão.
+
+2. **Padrões de candles 1-2-3 (compra/venda)**
+   - Detectar padrões clássicos tipo:
+     - máxima central maior que as adjacentes (topo 1-2-3),
+     - mínima central menor que as adjacentes (fundo 1-2-3).
+   - Também podem ser considerados outros padrões de reversão, mas comece por 1-2-3.
+   - Transformar em sinal discreto:
+     - +1 (fundo 1-2-3, compra),
+     - -1 (topo 1-2-3, venda),
+     - 0 caso contrário.
+   - Esses eventos provavelmente são confirmados com latência (ex.: 1–2 barras depois). Isso é aceitável; basta manter o princípio de não reescrever o passado.
+
+3. **Volume (anomalias e expansão/contração)**
+   - Construir uma série derivada do volume:
+     - por exemplo, z-score (volume atual vs média e desvio padrão de uma janela),
+     - ou diferença entre volume atual e média, normalizada,
+     - ou outro indicador robusto de “anomalia de volume” associável a reversões.
+   - Opcionalmente, usar também **preço x volume** (ex.: range da barra ponderado pelo volume).
+
+4. **Combinação das fontes**
+   - Cada fonte (zigzag, candles, volume) pode virar uma wave própria:
+     - `wave_zigzag(t)`, `wave_candle(t)`, `wave_volume(t)`
+   - Opcionalmente, combine em uma wave final:
+     - `wave_total(t) = w1 * wave_zigzag(t) + w2 * wave_candle(t) + w3 * wave_volume(t)`
+   - Os pesos `w1, w2, w3` podem ser configuráveis via input do indicador.
+
+5. **Domínio da frequência (FFT/convolução)**
+   - Para cada wave ou para uma combinação delas:
+     - aplicar detrend,
+     - aplicar FFT (usando ALGLIB em `fasttransforms.*`),
+     - opcionalmente:
+       - filtrar frequências indesejadas (ex.: ruído de altíssima frequência),
+       - destacar bandas associadas a períodos de interesse (por ex., janelas inspiradas em razões de Fibonacci, se for pertinente),
+     - voltar ao domínio do tempo (IFFT) para gerar uma versão filtrada e mais “suave” da reversal wave.
+
+   - O objetivo da FFT aqui é:
+     - limpar ruído,
+     - realçar padrões de oscilação relevantes,
+     - eventualmente permitir análise exploratória de periodicidades (para tuning futuro).
+
+------------------------------------------------------------
+4. PIPELINE TÉCNICO ESPERADO (ALTO NÍVEL)
+------------------------------------------------------------
+
+Implemente um pipeline aproximadamente assim (você pode refinar/ajustar, mas documente):
+
+1) Descoberta e leitura de código existente
+   - Localizar no workspace:
+     - `fasttransforms.cpp` / `fasttransforms.h`
+     - `FFTBridge.mqh`
+     - `fiboprz_v3.25.cpu.accum.mq5`
+     - e demais `.mqh` relacionados.
+   - Entender o que já existe:
+     - funções FFT, convolução, correlação, etc. expostas pelo ALGLIB/fasttransforms;
+     - como MQL5 se comunica hoje com a DLL (se já houver algum bridge implementado).
+   - Gerar um pequeno resumo em um arquivo `docs/reversal_wave_pipeline_overview.md` explicando o estado atual e o plano de modificação.
+
+2) Definir estrutura da DLL para “Reversal Wave”
+   - Criar arquivos C++ novos, por exemplo:
+     - `reversal_wave.cpp`
+     - `reversal_wave.h`
+   - Neles:
+     - incluir `fasttransforms.h` e headers necessários.
+     - Definir funções exportadas para MQL5, por exemplo:
+
+       - `RW_ComputeWave3Signals(...)`:
+         - entradas:
+           - ponteiros para arrays `double`:
+             - `zigzag_signal[]`, `candles_signal[]`, `volume_signal[]`,
+           - tamanho N (número de barras),
+           - parâmetros (ex.: tipo de detrend, largura de janela, pesos, etc.),
+         - saídas:
+           - `wave_zigzag[]`, `wave_candles[]`, `wave_volume[]`, `wave_total[]`
+             (ou subset disso, configurável),
+           - código de retorno (0 = OK, !=0 = erro).
+
+     - Implementar:
+       - etapa de detrend das séries de entrada,
+       - chamada a FFT/FFTR/IFFT do ALGLIB,
+       - filtragem no domínio da frequência (ex.: atenuar alta frequência extrema),
+       - reconstrução no tempo,
+       - normalização final (sinal em torno de zero, amplitude razoável).
+
+3) Definir e implementar DETREND
+   - Escolher ao menos uma estratégia limpa e bem documentada, por exemplo:
+     - regressão linear em janela (OLS) para cada ponto:
+       - ajustar `preço ~ tempo` em uma janela deslizante,
+       - subtrair a reta ajustada da série naquela janela,
+       - ou fazer isso numa batelada com convoluções eficientes.
+   - Alternativa simples:
+     - subtrair média local +, se necessário, alguma forma de “tilt correction”.
+   - Documentar a estratégia em `docs/reversal_wave_pipeline_overview.md`.
+
+4) Integração com MQL5 (bridge)
+   - Criar ou atualizar um `.mqh` específico, por exemplo:
+     - `ReversalWaveBridge.mqh`
+   - Nele:
+     - declarar `import` da DLL:
+       - protótipos `import` condizentes com as funções exportadas por `reversal_wave.cpp`.
+     - funções wrapper em MQL5 que:
+       - preparam arrays de entrada (zigzag, candles, volume),
+       - chamam a DLL,
+       - preenchem buffers de desenho do indicador.
+
+5) Ajuste do indicador MQL5
+   - Escolher um indicador MQL5 específico (pode ser um novo, por exemplo `ReversalWave.mq5`), em vez de mexer demais no existente.
+   - No indicador:
+     - em `OnInit`:
+       - alocar buffers,
+       - configurar estilos de plot (waves por subjanela, etc.).
+     - em `OnCalculate`:
+       - construir/atualizar as séries:
+         - `zigzag_signal[i]`,
+         - `candles_signal[i]`,
+         - `volume_signal[i]`,
+       - chamar a função da DLL via bridge,
+       - escrever os resultados nos buffers de saída (waves).
+
+   - Garantir:
+     - uso correto de índices em série (0 = barra mais recente),
+     - respeito a `prev_calculated` para não recalcular tudo à toa,
+     - que o indicador funcione tanto online quanto no testador.
+
+6) Testes e verificação
+   - Criar pelo menos:
+     - um pequeno programa/rotina C++ (ou testes simples) que:
+       - alimenta o pipeline com sinais sintéticos (seno + ruído),
+       - verifica se a FFT/IFFT e filtragem fazem sentido.
+     - um cenário de teste em MQL5:
+       - usar `mtcli tester` (se configurado) ou o Strategy Tester manualmente,
+       - anexar o indicador `ReversalWave.mq5` e inspecionar:
+         - se as waves reagem a pivôs e padrões 1-2-3,
+         - se não há repint.
+
+   - Adicionar seção de “limitações conhecidas” no `docs/reversal_wave_pipeline_overview.md`.
+
+------------------------------------------------------------
+5. REGRAS DE ESTILO E ESTRATÉGIA DE TRABALHO
+------------------------------------------------------------
+
+- Trabalhe em ciclos:
+  1. Descobrir arquivos / ler código.
+  2. Esboçar plano curto (em texto) no repositório (ex.: `.md`).
+  3. Implementar uma etapa pequena.
+  4. Testar (compilação, testes simples).
+  5. Iterar.
+
+- Explique no repositório o suficiente para um humano entender:
+  - **Comentários em C++/MQL5** claros, mas sem texto excessivo.
+  - Documentação em `docs/*.md` para o pipeline.
+
+- No terminal (shell), use comandos simples:
+  - `ls`, `find`, `rg`, `cat`, `sed`, `grep`, `npm test` (se necessário), etc.
+  - Evite comandos destrutivos (rm -rf, etc.) a menos que explicitamente solicitado.
+
+- Se algo for ambíguo, faça a escolha mais conservadora e documente:
+  - por exemplo, se não sabe se a janela de FFT deve ser 256 ou 512, escolha uma default (ex.: 256), mas:
+    - exponha como parâmetro input do indicador,
+    - explique no `.md` por que escolheu esse valor.
+
+- Não introduza dependências externas complexas (tipo libs de GPU) nesta etapa:
+  - a prioridade é:
+    1. pipeline conceitual correto,
+    2. implementação C++/ALGLIB estável,
+    3. interface clara para futura aceleração por GPU.
+
+------------------------------------------------------------
+6. CHECKLIST DE ENTREGA
+------------------------------------------------------------
+
+Considere a tarefa **concluída** quando:
+
+1. Existir uma documentação em:
+   - `docs/reversal_wave_pipeline_overview.md`
+     - descrevendo:
+       - sinais de entrada (zigzag, candles, volume),
+       - detrend,
+       - uso de FFT/convolução,
+       - waves finais,
+       - interface DLL <-> MQL5,
+       - limitações.
+
+2. Existirem arquivos C++ novos (por exemplo):
+   - `reversal_wave.h`
+   - `reversal_wave.cpp`
+   - integrados com `fasttransforms.*`
+   - com funções exportadas claras para MQL5.
+
+3. Existir um bridge MQL5:
+   - `ReversalWaveBridge.mqh` (ou nome similar),
+   - com `import` da DLL e funções wrapper.
+
+4. Existir um indicador MQL5 funcional:
+   - por exemplo, `ReversalWave.mq5`,
+   - que:
+     - compila,
+     - roda em gráfico,
+     - mostra waves coerentes com reversões de zigzag, candles 1-2-3 e volume,
+     - não repinta histórico (exceto o mínimo inevitável por causa de confirmação de eventos).
+
+5. (Opcional, mas desejável) Houver algum teste sintético:
+   - C++ (pequeno main ou testes simples),
+   - e/ou MQL5 com dados artificiais,
+   - mostrando que a FFT/IFFT do pipeline mantém o sinal coerente.
+
+------------------------------------------------------------
+7. LEMBRETE FINAL
+------------------------------------------------------------
+
+Seu foco aqui é:
+
+- projetar a arquitetura da wave de reversão,
+- implementar um pipeline FFT/convolução de boa qualidade, sem “cacoete” de só usar média móvel,
+- garantir que tudo é utilizável pelo indicador MQL5 sem repaint,
+- preparar o terreno para uma futura migração real para GPU.
+
+Trabalhe de forma autônoma, justificando decisões importantes nos arquivos `.md` e em comentários de código, e garantindo que o projeto continua compilável e operacional a cada etapa.
