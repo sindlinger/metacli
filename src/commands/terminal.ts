@@ -5,6 +5,49 @@ import chalk from 'chalk';
 import { ProjectStore } from '../config/projectStore.js';
 import { runCommand } from '../utils/shell.js';
 
+function iniSet(filePath: string, section: string, key: string, value: string) {
+  let lines: string[] = [];
+  if (fs.existsSync(filePath)) {
+    lines = fs.readFileSync(filePath, 'utf8').replace(/\r/g, '').split('\n');
+  }
+  let secStart = -1;
+  let secEnd = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('[') && line.endsWith(']')) {
+      const name = line.slice(1, -1);
+      if (name.toLowerCase() === section.toLowerCase()) {
+        secStart = i;
+      } else if (secStart >= 0) {
+        secEnd = i;
+        break;
+      }
+    }
+  }
+  if (secStart === -1) {
+    lines.push(`[${section}]`);
+    lines.push(`${key}=${value}`);
+  } else {
+    let found = false;
+    for (let i = secStart + 1; i < secEnd; i++) {
+      const line = lines[i];
+      const idx = line.indexOf('=');
+      if (idx > -1) {
+        const k = line.slice(0, idx).trim();
+        if (k.toLowerCase() === key.toLowerCase()) {
+          lines[i] = `${key}=${value}`;
+          found = true;
+          break;
+        }
+      }
+    }
+    if (!found) {
+      lines.splice(secEnd, 0, `${key}=${value}`);
+    }
+  }
+  fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
+}
+
 const store = new ProjectStore();
 
 function buildArgs(opts: any) {
@@ -51,6 +94,10 @@ function renderTesterConfig(opts: any) {
   ].join('\n');
 }
 
+function commonIniPath(dataDir: string) {
+  return path.join(dataDir, 'config', 'common.ini');
+}
+
 export function registerTerminalCommands(program: Command) {
   const term = program.command('terminal').description('Operações diretas no terminal (fora do listener)');
 
@@ -71,6 +118,52 @@ export function registerTerminalCommands(program: Command) {
       const args = buildArgs(opts);
       await runCommand(info.terminal, args, { stdio: opts.detach ? 'ignore' : 'inherit', detach: opts.detach });
       console.log(chalk.green(`[terminal] iniciado ${info.terminal} ${args.join(' ')}`));
+    });
+
+  term
+    .command('config-set')
+    .description('Altera um par key=value em config/common.ini do projeto')
+    .requiredOption('--key <key>', 'Chave (ex.: EnableDlls)')
+    .requiredOption('--value <value>', 'Valor')
+    .option('--section <name>', 'Seção (default Common)', 'Common')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      if (!info.data_dir) throw new Error('data_dir não configurado.');
+      const iniPath = commonIniPath(info.data_dir);
+      await fs.ensureDir(path.dirname(iniPath));
+      iniSet(iniPath, opts.section, opts.key, opts.value);
+      console.log(chalk.green(`[terminal] ${opts.section}.${opts.key}=${opts.value} em ${iniPath}`));
+    });
+
+  term
+    .command('config-show')
+    .description('Mostra config/common.ini do projeto')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      if (!info.data_dir) throw new Error('data_dir não configurado.');
+      const iniPath = commonIniPath(info.data_dir);
+      if (!fs.existsSync(iniPath)) {
+        console.log(chalk.yellow(`common.ini não encontrado em ${iniPath}`));
+        return;
+      }
+      const content = await fs.readFile(iniPath, 'utf8');
+      console.log(content);
+    });
+
+  term
+    .command('config-enable-dlls')
+    .description('Habilita DLLs e EAs no common.ini e aplica /portable se precisar')
+    .option('--project <id>')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      if (!info.data_dir) throw new Error('data_dir não configurado.');
+      const iniPath = commonIniPath(info.data_dir);
+      await fs.ensureDir(path.dirname(iniPath));
+      iniSet(iniPath, 'Experts', 'AllowDllImport', '1');
+      iniSet(iniPath, 'Experts', 'Enabled', '1');
+      console.log(chalk.green(`[terminal] DLLs habilitadas em ${iniPath}`));
     });
 
   term
