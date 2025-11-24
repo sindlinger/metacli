@@ -323,15 +323,23 @@ export function registerGpuCommands(program: Command) {
       const projName = opts.name || path.basename(projDir);
       await runBuildScript(projDir, opts.script, { config: opts.config, arch: opts.arch });
 
-      const releaseDir = path.join(projDir, 'build-win', opts.config);
-      if (!(await fsExtra.pathExists(releaseDir))) {
-        throw new Error(`Release não encontrado em ${releaseDir}`);
+      const releaseDirCandidates = [
+        path.join(GPU_PROJECTS_DIR, `build_${projName}`, opts.config),
+        path.join(GPU_PROJECTS_DIR, `build_${projName}`),
+        path.join(projDir, 'build-win', opts.config),
+        path.join(projDir, 'build-win'),
+      ];
+      const releaseDir = releaseDirCandidates.find((p) => fs.existsSync(p) && fs.statSync(p).isDirectory());
+      if (!releaseDir) {
+        throw new Error(
+          `Release não encontrado. Verifique build em build-win/<cfg> ou GPU-dll_projects/build_${projName}/<cfg>.`
+        );
       }
       const dlls = (await fsExtra.readdir(releaseDir)).filter(
         (f) => f.toLowerCase().endsWith('.dll') || f.toLowerCase().endsWith('.exe')
       );
 
-      const buildMirror = path.join(GPU_PROJECTS_DIR, `build_${projName}`);
+      const buildMirror = path.join(GPU_PROJECTS_DIR, `build_${projName}`, opts.config);
       await fsExtra.ensureDir(buildMirror);
       for (const f of dlls) {
         await fsExtra.copy(path.join(releaseDir, f), path.join(buildMirror, f), { overwrite: true });
