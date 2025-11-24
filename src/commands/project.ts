@@ -2,18 +2,13 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { ProjectStore, ProjectDefaults } from '../config/projectStore.js';
 import { restartListenerInstance } from './listener.js';
-import {
-  DEFAULT_AGENT_DATA_DIR,
-  DEFAULT_AGENT_METAEDITOR,
-  DEFAULT_AGENT_TERMINAL,
-  defaultAgentLibs,
-  DEFAULT_AGENT_DEFAULTS,
-  DEFAULT_AGENT_PROJECT_ID,
-} from '../config/agentDefaults.js';
+import { DEFAULT_AGENT_DEFAULTS, DEFAULT_AGENT_PROJECT_ID } from '../config/agentDefaults.js';
 import { logProjectSummary } from '../utils/projectSummary.js';
+import { promptYesNo } from '../utils/prompt.js';
+import { ensureBaseTerminal, installTerminalForProject } from '../utils/terminalInstall.js';
+import { generateProjectId } from '../utils/projectId.js';
 
 const store = new ProjectStore();
-const DEFAULT_LIBS = defaultAgentLibs();
 const DEFAULTS: ProjectDefaults = { ...DEFAULT_AGENT_DEFAULTS };
 
 export function registerProjectCommands(program: Command) {
@@ -21,20 +16,35 @@ export function registerProjectCommands(program: Command) {
 
   project
     .command('init')
-    .description('Cria projeto usando os caminhos padrão deste ambiente')
-    .option('--id <id>', 'Nome do projeto', DEFAULT_AGENT_PROJECT_ID)
+    .description('Cria projeto com terminal isolado (mtcli gerencia todos os caminhos)')
+    .option('--id <id>', 'Nome do projeto (se não passar, será perguntado)')
+    .option('--force', 'Recria se já existir', false)
     .action(async (opts) => {
-      const dataDir = DEFAULT_AGENT_DATA_DIR;
+      const existing = await store.show();
+      const id = opts.id?.trim() || generateProjectId();
+      if (!opts.id) {
+        console.log(chalk.gray(`[project init] Gerado id automático: ${id}`));
+      }
+      if (existing.projects[id]) {
+        const proceed = opts.force || (await promptYesNo(`Projeto "${id}" já existe. Recriar?`, false));
+        if (!proceed) {
+          console.log(chalk.yellow(`Projeto "${id}" já existe; nada foi alterado.`));
+          await logProjectSummary(existing.projects[id]);
+          return;
+        }
+      }
+      const base = await ensureBaseTerminal();
+      const install = await installTerminalForProject(id, base);
       const payload = {
-        project: opts.id,
-        libs: defaultAgentLibs(dataDir),
-        terminal: DEFAULT_AGENT_TERMINAL,
-        metaeditor: DEFAULT_AGENT_METAEDITOR,
-        data_dir: dataDir,
+        project: id,
+        libs: install.libs,
+        terminal: install.terminal,
+        metaeditor: install.metaeditor,
+        data_dir: install.dataDir,
         defaults: DEFAULTS,
       };
-      const saved = await store.setProject(opts.id, payload, true);
-      console.log(chalk.green(`Projeto ${saved.project} inicializado com caminhos padrão.`));
+      const saved = await store.setProject(id, payload, true);
+      console.log(chalk.green(`Projeto ${saved.project} inicializado com terminal isolado.`));
       await restartListenerInstance({ project: saved.project, profile: DEFAULTS.profile ?? undefined });
       await logProjectSummary(saved);
     });
@@ -63,30 +73,24 @@ export function registerProjectCommands(program: Command) {
 
   project
     .command('save')
-    .description('Atualiza ou cria um projeto')
+    .description('Cria ou recria um projeto com terminal isolado gerido pelo mtcli')
     .requiredOption('--id <id>', 'Nome do projeto')
-    .option('--libs <path>', 'Caminho para MQL5\\Libraries')
-    .option('--terminal <path>', 'terminal64.exe')
-    .option('--metaeditor <path>', 'metaeditor64.exe')
-    .option('--data-dir <path>', 'Pasta de dados (contém MQL5)')
     .option('--set-default', 'Torna este o projeto padrão', false)
     .action(async (opts) => {
+      const base = await ensureBaseTerminal();
+      const install = await installTerminalForProject(opts.id, base);
       const payload = {
         project: opts.id,
-        libs: opts.libs,
-        terminal: opts.terminal,
-        metaeditor: opts.metaeditor,
-        data_dir: opts.dataDir || opts['dataDir'],
+        libs: install.libs,
+        terminal: install.terminal,
+        metaeditor: install.metaeditor,
+        data_dir: install.dataDir,
+        defaults: DEFAULTS,
       };
-      if (!payload.libs) {
-        throw new Error('Informe --libs');
-      }
       const saved = await store.setProject(opts.id, payload, opts.setDefault);
-      console.log(chalk.green(`Projeto ${saved.project} salvo.`));
-      if (payload.terminal && payload.data_dir) {
-        await restartListenerInstance({ project: saved.project, profile: saved.defaults?.profile ?? undefined });
-        await logProjectSummary(saved);
-      }
+      console.log(chalk.green(`Projeto ${saved.project} salvo/recriado com terminal isolado.`));
+      await restartListenerInstance({ project: saved.project, profile: saved.defaults?.profile ?? undefined });
+      await logProjectSummary(saved);
     });
 
   const defaults = project.command('defaults').description('Configura opções padrão');

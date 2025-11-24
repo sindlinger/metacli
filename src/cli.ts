@@ -11,6 +11,7 @@ import { registerEditorCommands } from './commands/editor.js';
 import { registerDllCommands } from './commands/dll.js';
 import { registerUtilsCommands } from './commands/utils.js';
 import { registerConfigCommands } from './commands/config.js';
+import { registerQuickCommands } from './commands/quick.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -25,6 +26,7 @@ async function main() {
     .showHelpAfterError();
 
   registerInitCommand(program);
+  registerQuickCommands(program);
   registerProjectCommands(program);
   registerChartCommands(program);
   registerIndicatorCommands(program);
@@ -37,7 +39,12 @@ async function main() {
 
   program.addHelpText(
     'after',
-    '\nExemplo rápido:\n  mtcli init\n  mtcli indicator add --indicator Project/ExampleIndicator\n  mtcli expert add --expert Examples\\\\MACD\\\\MACD Sample --template ExpertMACD.tpl'
+    '\nAtalhos rápidos:\n' +
+      '  mtcli init\n' +
+      '  mtcli compile -i \\Indicators\\Examples\\ZigZag\n' +
+      '  mtcli run -i Examples\\ZigZag\n' +
+      '  mtcli run -e Moving_Average -v\n' +
+      '  mtcli chart capture\n'
   );
 
   try {

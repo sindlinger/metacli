@@ -146,6 +146,34 @@ $wshell.SendKeys('s')
   await execa(ps, ['-NoProfile', '-Command', script], { stdio: 'inherit' });
 }
 
+async function listMqlFiles(info: ProjectInfo, kind: 'indicator' | 'expert' | 'script') {
+  if (!info.data_dir) throw new Error('Projeto sem data_dir configurado.');
+  const root = path.join(info.data_dir, 'MQL5', kind === 'indicator' ? 'Indicators' : kind === 'expert' ? 'Experts' : 'Scripts');
+  if (!(await fs.pathExists(root))) {
+    console.log(chalk.yellow(`Pasta não encontrada: ${root}`));
+    return;
+  }
+  const files: string[] = [];
+  const walk = async (dir: string) => {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full);
+      } else if (/\.(mq5|ex5)$/i.test(entry.name)) {
+        files.push(path.relative(root, full));
+      }
+    }
+  };
+  await walk(root);
+  if (files.length === 0) {
+    console.log(chalk.yellow('Nenhum arquivo encontrado.'));
+    return;
+  }
+  console.log(chalk.cyan(`Lista (${kind}):`));
+  files.sort().forEach((f) => console.log('  ' + f));
+}
+
 export function registerChartCommands(program: Command) {
   const chart = program.command('chart').description('Opera gráficos e templates via listener');
   const screenshot = chart
@@ -340,6 +368,23 @@ export function registerChartCommands(program: Command) {
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       await sendChartList(info);
+    });
+
+  chart
+    .command('files')
+    .alias('ls')
+    .description('Lista arquivos em MQL5/Indicators, Experts ou Scripts do projeto')
+    .option('-i, --indicator', 'Listar Indicators')
+    .option('-e, --expert', 'Listar Experts')
+    .option('-s, --script', 'Listar Scripts')
+    .option('--project <id>')
+    .action(async (opts) => {
+      const flags = ['indicator', 'expert', 'script'].filter((k) => (opts as any)[k]);
+      const selected = flags.length === 0 ? ['indicator'] : flags;
+      const info = await store.useOrThrow(opts.project);
+      for (const kind of selected as ('indicator' | 'expert' | 'script')[]) {
+        await listMqlFiles(info, kind);
+      }
     });
 
   chart
