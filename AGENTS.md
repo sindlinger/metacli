@@ -13,6 +13,38 @@ This integrated repository contains:
 This document describes how the agents are expected to behave, which tools
 they use, and how all the pieces fit together in this **integrated** project.
 
+## Operação MT5 (projeto único)
+
+- Projeto ativo único: terminal clonado em `projects/terminals/project-20251124-125338-klj1/`.
+- `data_dir` do projeto é a raiz desse clone; o `common.ini` fica em `config/common.ini`.
+- Indicadores GPU já copiados: `MQL5/Indicators/Hub_WavePhaseSD/`.
+- Credenciais demo Dukascopy atuais: login `DEMO21`, senha `eyxRo`, server `Dukascopy-demo-mt5-1` (gravadas em `config/common.ini`).
+- Configurações já aplicadas no `common.ini`: DLLs ON, LiveTrading ON, MaxBars=999999999, perfis Default, etc.
+
+### Como iniciar o MT5 corretamente
+1) Garanta o MT5 base em `C:/Program Files/MetaTrader 5` (ou defina `MTCLI_BASE_TERMINAL` para outro terminal com `terminal64.exe`).
+2) Execute: `node dist/cli.js init` (ou `mtcli init` se no PATH). Ele reutiliza o projeto ativo e aponta para `config/common.ini` e o `data_dir` correto.
+3) O terminal a usar é `projects/terminals/project-20251124-125338-klj1/terminal64.exe` com `/config:config/common.ini` e `/datapath:<raiz-do-clone>`.
+
+### Conta demo (Dukascopy)
+- Checar/renovar: `mtcli ducascopy open-demo` (renova se restar <=1 dia).
+- Consultar apenas: `mtcli ducascopy mail`.
+- Estado fica em `ducascopy_state.json` (local).
+
+### GPU/Engine
+- Indicadores GPU: `MQL5/Indicators/Hub_WavePhaseSD/`.
+- Coloque DLLs/EXE da engine em `MQL5/Libraries/` do clone (ex.: `Gen4EngineService.exe` + dependências) para evitar erro de serviço ausente.
+
+### Checagens rápidas
+- `mtcli verify` — presença de pastas/arquivos essenciais no data_dir.
+- `mtcli logs --type terminal|metaeditor|mql5|tester --lines 200` — tail de logs.
+- `mtcli config paths` — caminhos importantes com ✓/✗.
+
+### Observações
+- Evitar múltiplos projetos; tudo usa o projeto ativo acima.
+- Não sobrescrever `config/common.ini` manualmente; ele já contém credenciais e toggles corretos.
+- Para ajustar credenciais, edite `config/common.ini` (Login/Password/Server) e rode `mtcli init` de novo.
+
 ---
 
 ## 1. Overall architecture
