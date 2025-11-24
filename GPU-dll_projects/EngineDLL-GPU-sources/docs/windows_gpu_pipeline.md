@@ -66,8 +66,8 @@ Execute em PowerShell:
 ## 4. Links para as instancias
 
 Execute `SetupRuntimeLinks.ps1` sempre que precisar recriar as junções. Ele lê
-`links_config.json` e cria somente os links do WaveSpecGPU, mantendo os headers nativos do
-MetaTrader no lugar.
+`links_config.json` e ajusta somente as pastas do WaveSpecGPU, mantendo os headers nativos
+do MetaTrader no lugar.
 
 Pastas padrão mapeadas para `Dev/`:
 
@@ -82,13 +82,13 @@ quando for distribuir artefatos.
 
 ## Fluxo recomendado
 
-1. `.\Build.ps1 -Clean` (somente quando necessario limpar `build_vs`).
-2. `.\Build.ps1` para rebuilds incrementais (Dev/bin e runtime/bin atualizados).
+1. `./Build.ps1 -Clean` (somente quando necessario limpar `build_vs`).
+2. `./Build.ps1` para rebuilds incrementais (Dev/bin e runtime/bin atualizados).
 3. `python watchdogs/WatchdogFiles_dev_to_runtime.py --apply --once` (opcional) para refletir alteracoes manuais em `Dev/` (bin, Indicators, Experts, Include, Scripts) no runtime entre builds.
-4. `python watchdogs/WatchdogLinks_runtime_m5folders.py --fix` para manter os terminais linkados ao `runtime/`.
-5. `.\SetupAgentTesterLinks.ps1` (executar como administrador) para sincronizar `MQL5\Libraries` dos agentes tester com `AgentsFiles-to-tester_folder_terminals`.
-6. `.\DevSync.ps1 -Snapshot -Label <texto>` sempre que quiser registrar uma versao.
-7. Recompilar `.mq5` no MetaEditor64 (gera `.ex5` em `Dev/`) e utilizar `.\DevSync.ps1` para propagar para o runtime quando necessario.
+4. `python watchdogs/WatchdogLinks_runtime_m5folders.py --fix` para manter as instancias apontando para `runtime/`.
+5. `./SetupAgentTesterLinks.ps1` (administrador) para alinhar `MQL5\Libraries` dos agentes tester.
+6. `./DevSync.ps1 -Snapshot -Label <texto>` sempre que quiser registrar uma versao.
+7. Recompile indicadores/EAs no MetaEditor64 (gera `.ex5` em `Dev/`) e use `./DevSync.ps1` quando precisar propagar essas alteracoes para `runtime/`.
 
 Links rápidos:
 - `./GPUDevCLI.ps1 -Run 11` → junções para `Dev/` (modo padrão).
@@ -97,15 +97,21 @@ Links rápidos:
 
 ## 5. Watchdog Dev/runtime
 
-O utilitario Python `watchdogs/WatchdogFiles_dev_to_runtime.py` observa `Dev/bin`, `Dev/Indicators`, `Dev/Experts`, `Dev/Include` e `Dev/Scripts`, comparando com seus pares em `runtime/`:
+O utilitario Python `watchdogs/WatchdogFiles_dev_to_runtime.py` mantem `runtime/` alinhado com `Dev/` (bin, Indicators, Experts, Include e Scripts):
 
 ```powershell
-python watchdogs/WatchdogFiles_dev_to_runtime.py             # monitora continuamente, apenas registra
-python watchdogs/WatchdogFiles_dev_to_runtime.py --once      # verifica uma vez e encerra
-python watchdogs/WatchdogFiles_dev_to_runtime.py --apply     # copia automaticamente arquivos novos/alterados
+python watchdogs/WatchdogFiles_dev_to_runtime.py            # monitoramento continuo (somente registro)
+python watchdogs/WatchdogFiles_dev_to_runtime.py --once     # varredura unica
+python watchdogs/WatchdogFiles_dev_to_runtime.py --apply    # registra e tambem copia arquivos novos/alterados
 ```
 
-Use `--interval <segundos>` (padrao: 600s = 10 minutos) para definir a frequencia e `--quiet` para reduzir os logs.
+Use `--interval` para ajustar o tempo entre verificacoes (padrao: 600s = 10 minutos) e `--quiet` para reduzir os logs.
+
+Para revisar e recriar juncoes quando necessario:
+
+```powershell
+python watchdogs/WatchdogLinks_runtime_m5folders.py --fix
+```
 
 ## Selecao de backend (servico × DLL)
 
@@ -126,4 +132,4 @@ Use `--interval <segundos>` (padrao: 600s = 10 minutos) para definir a frequenci
 ## MetaEditor After Compile
 
 - Configure em *Tools -> Options -> General -> After compile run*: `powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "<repo>\WatchdogAfterCompile.ps1" "%path%"`.
-- O script executa `WatchdogFiles_dev_to_runtime.py --apply --once`, atualizando runtime e agentes apos cada build no MetaEditor.
+- O script executa `WatchdogFiles_dev_to_runtime.py --apply --once`, garantindo que runtime e agentes recebam os artefatos apos cada compilacao.

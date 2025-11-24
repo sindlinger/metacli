@@ -34,5 +34,3 @@ foreach(cfg IN ITEMS Debug Release RelWithDebInfo MinSizeRel)
         "ARCHIVE_OUTPUT_DIRECTORY_${cfg_upper}" "${BIN_DIR}"
     )
 endforeach()
-
-gpu_mirror_target_to_runtime(GpuEngineClient)
