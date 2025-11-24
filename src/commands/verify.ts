@@ -41,10 +41,9 @@ async function verifyPaths(items: VerifyItem[]) {
 export function registerVerifyCommands(program: Command) {
   program
     .command('verify')
-    .description('Lista presença das pastas/arquivos essenciais do MT5 (data_dir)')
-    .option('--project <id>', 'Projeto alvo')
-    .action(async (opts) => {
-      const info = await store.useOrThrow(opts.project);
+    .description('Lista presença das pastas/arquivos essenciais do MT5 (data_dir do projeto ativo)')
+    .action(async () => {
+      const info = await store.useOrThrow();
       if (!info.data_dir) throw new Error('data_dir não configurado.');
       const base = normalizePath(info.data_dir);
       const expected: VerifyItem[] = [
