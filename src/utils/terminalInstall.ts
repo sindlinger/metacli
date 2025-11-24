@@ -12,6 +12,9 @@ const DOWNLOADS_ROOT = path.join(repoRoot(), 'projects', 'terminals', '_download
 const FRESH_DIR = path.join(DOWNLOADS_ROOT, 'mt5-fresh');
 const INSTALLER_PATH = path.join(DOWNLOADS_ROOT, 'mt5setup.exe');
 
+const TERMINAL_EXE = 'terminal64.exe';
+const METAEDITOR_EXE = 'metaeditor64.exe';
+
 function isWin(): boolean {
   return process.platform === 'win32' || !!process.env.WSL_DISTRO_NAME;
 }
@@ -103,9 +106,7 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
   const installerUrl = opts.installerUrl || INSTALLER_URL;
   const installerPath = INSTALLER_PATH;
 
-  if (await isTerminalFolder(target)) {
-    return target;
-  }
+  if (await isTerminalFolder(target)) return target; // já baixado/instalado
 
   if (opts.interactive !== false) {
     const ok = await promptYesNo('Nenhum terminal base encontrado. Baixar e instalar o MetaTrader 5 agora?', true);
@@ -124,6 +125,16 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
   console.log(`Instalando MT5 em ${targetWin} (modo automático)...`);
   const pathArg = `/path:"${targetWin}"`;
   await execa(installerWin, ['/auto', pathArg], { stdio: 'inherit', windowsHide: true });
+
+  // Evita reinstalar: se instalou em pasta temporária do instalador, mova/copie
+  if (!(await isTerminalFolder(target))) {
+    // tenta localizar última instalação em Downloads padrão do instalador
+    const alt = path.join(process.env['ProgramFiles'] || 'C:/Program Files', 'MetaTrader 5');
+    if (await isTerminalFolder(alt)) {
+      await fs.ensureDir(target);
+      await fs.copy(alt, target, { overwrite: true });
+    }
+  }
 
   if (!(await isTerminalFolder(target))) {
     throw new Error('Instalação do MT5 falhou: terminal64.exe não encontrado.');
