@@ -33,6 +33,24 @@ function renderConfigTemplate(opts: any) {
   ].join('\n');
 }
 
+function renderTesterConfig(opts: any) {
+  return [
+    '[Tester]',
+    opts.expert ? `Expert=${opts.expert}` : 'Expert=',
+    opts.symbol ? `Symbol=${opts.symbol}` : 'Symbol=',
+    opts.period ? `Period=${opts.period}` : 'Period=',
+    opts.model ? `Model=${opts.model}` : 'Model=0',
+    opts.spread ? `Spread=${opts.spread}` : 'Spread=0',
+    opts.deposit ? `Deposit=${opts.deposit}` : 'Deposit=10000',
+    opts.currency ? `Currency=${opts.currency}` : 'Currency=USD',
+    opts.report ? `Report=${opts.report}` : 'Report=mtcli_report',
+    opts.visual ? 'Visual=1' : 'Visual=0',
+    '',
+    '[TesterInputs]',
+    '',
+  ].join('\n');
+}
+
 export function registerTerminalCommands(program: Command) {
   const term = program.command('terminal').description('Operações diretas no terminal (fora do listener)');
 
@@ -73,5 +91,51 @@ export function registerTerminalCommands(program: Command) {
       const outPath = path.resolve(opts.out);
       await fs.writeFile(outPath, content, 'utf8');
       console.log(chalk.green(`[terminal] template gerado em ${outPath}`));
+    });
+
+  term
+    .command('tester-template')
+    .description('Gera ini para Strategy Tester (uso com /config)')
+    .option('--out <file>', 'Destino', 'tester.ini')
+    .requiredOption('--expert <name>', 'Experts\\EA.ex5')
+    .requiredOption('--symbol <symbol>', 'Símbolo')
+    .requiredOption('--period <period>', 'Período (H1, M15, etc.)')
+    .option('--model <n>', 'Modelagem (0=tick)', '0')
+    .option('--spread <points>', 'Spread', '0')
+    .option('--deposit <val>', 'Depósito', '10000')
+    .option('--currency <ccy>', 'Moeda', 'USD')
+    .option('--visual', 'Modo visual', false)
+    .option('--report <name>', 'Nome base do report', 'mtcli_report')
+    .action(async (opts) => {
+      const content = renderTesterConfig(opts);
+      const outPath = path.resolve(opts.out);
+      await fs.writeFile(outPath, content, 'utf8');
+      console.log(chalk.green(`[terminal] tester ini gerado em ${outPath}`));
+    });
+
+  term
+    .command('launch')
+    .description('Gera ini temporário (login/server/profile/expert) e abre terminal com /config')
+    .requiredOption('--login <id>')
+    .requiredOption('--password <pass>')
+    .requiredOption('--server <srv>')
+    .option('--profile <name>')
+    .option('--expert <name>')
+    .option('--symbol <symbol>')
+    .option('--period <period>')
+    .option('--template <tpl>')
+    .option('--portable', 'Usar /portable', false)
+    .option('--datapath <path>', 'Define /datapath:<path>')
+    .option('--project <id>')
+    .option('--keep-ini', 'Não apagar ini temporário', false)
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      if (!info.terminal) throw new Error('terminal64.exe não configurado.');
+      const tmpIni = path.join(process.cwd(), `mtcli_tmp_${Date.now()}.ini`);
+      const content = renderConfigTemplate(opts);
+      await fs.writeFile(tmpIni, content, 'utf8');
+      const args = buildArgs({ ...opts, config: tmpIni });
+      await runCommand(info.terminal, args, { stdio: 'inherit', detach: false });
+      if (!opts.keepIni) await fs.remove(tmpIni).catch(() => {});
     });
 }
