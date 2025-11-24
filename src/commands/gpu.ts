@@ -166,6 +166,35 @@ async function listGpuProjects() {
   }
 }
 
+async function listRootBuilds() {
+  const root = repoRoot();
+  const entries = await fsExtra.readdir(root, { withFileTypes: true });
+  const dirs = entries.filter((e) => e.isDirectory() && e.name.toLowerCase().startsWith('build'));
+  if (dirs.length === 0) {
+    console.log(chalk.yellow('Nenhuma pasta de build* encontrada no diretório raiz.'));
+    return;
+  }
+  for (const dir of dirs) {
+    const full = path.join(root, dir.name);
+    const files: string[] = [];
+    const walkDepth1 = await fsExtra.readdir(full, { withFileTypes: true });
+    for (const entry of walkDepth1) {
+      const p = path.join(full, entry.name);
+      if (entry.isFile() && entry.name.toLowerCase().endsWith('.dll')) {
+        files.push(path.relative(root, p));
+      } else if (entry.isDirectory()) {
+        const inner = await fsExtra.readdir(p);
+        inner
+          .filter((f) => f.toLowerCase().endsWith('.dll'))
+          .forEach((f) => files.push(path.relative(root, path.join(p, f))));
+      }
+    }
+    const mark = files.length > 0 ? chalk.green('DLLs') : chalk.red('sem DLL');
+    console.log(`${chalk.magenta(dir.name)} ${mark}`);
+    files.sort().forEach((f) => console.log(`  - ${f}`));
+  }
+}
+
 export function registerGpuCommands(program: Command) {
   const gpu = program.command('gpu').description('Build/link das DLLs GPU');
 
@@ -237,5 +266,7 @@ export function registerGpuCommands(program: Command) {
     .description('Lista projetos GPU em GPU-dll_projects e suas DLLs')
     .action(async () => {
       await listGpuProjects();
+      console.log('');
+      await listRootBuilds();
     });
 }
