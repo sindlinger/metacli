@@ -29,6 +29,7 @@ string g_lastEAName = "";
 string g_lastEAParams = "";
 string g_lastEASymbol = "";
 string g_lastEATf = "";
+string g_lastEATpl = "";
 
 // Utilidades --------------------------------------------------------------
 string PayloadGet(const string payload, const string key)
@@ -146,6 +147,27 @@ int ParseParams(const string pstr, string &keys[], string &vals[])
   return count;
 }
 
+int BuildParams(const string pstr, MqlParam &outParams[])
+{
+  string ks[], vs[]; int cnt=ParseParams(pstr, ks, vs);
+  ArrayResize(outParams, cnt);
+  for(int i=0;i<cnt;i++)
+  {
+    double num = StrToDouble(vs[i]);
+    if(StringLen(vs[i])>0 && num!=0 || vs[i]=="0")
+    {
+      outParams[i].type = TYPE_DOUBLE;
+      outParams[i].double_value = num;
+    }
+    else
+    {
+      outParams[i].type = TYPE_STRING;
+      outParams[i].string_value = vs[i];
+    }
+  }
+  return cnt;
+}
+
 // Handlers ----------------------------------------------------------------
 bool H_Ping(string p[], string &m, string &d[]) { m="pong "+LISTENER_VERSION; return true; }
 
@@ -168,9 +190,7 @@ bool H_AttachInd(string p[], string &m, string &d[])
   string pstr = (ArraySize(p)>4)?p[4]:"";
   ENUM_TIMEFRAMES tf=TfFromString(tfstr); if(tf==0){ m="tf"; return false; }
   long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
-  string ks[], vs[]; int cnt=ParseParams(pstr, ks, vs);
-  MqlParam inputs[]; ArrayResize(inputs, cnt);
-  for(int i=0;i<cnt;i++) { inputs[i].type=TYPE_STRING; inputs[i].string_value=vs[i]; }
+  MqlParam inputs[]; BuildParams(pstr, inputs);
   int handle=iCustom(sym, tf, name, inputs);
   if(handle==INVALID_HANDLE){ m="iCustom fail"; return false; }
   if(!ChartIndicatorAdd(cid, sub-1, handle)){ m="ChartIndicatorAdd"; return false; }
@@ -245,17 +265,15 @@ bool H_AttachEA(string p[], string &m, string &d[])
   if(tpl!="" && FileIsExist(tplPath))
   {
     if(!ChartApplyTemplate(cid, tpl)) { m="ChartApplyTemplate"; return false; }
-    g_lastEAName=expert; g_lastEAParams=pstr; g_lastEASymbol=sym; g_lastEATf=p[1];
+    g_lastEAName=expert; g_lastEAParams=pstr; g_lastEASymbol=sym; g_lastEATf=p[1]; g_lastEATpl=tpl;
     m="template applied (EA)"; return true;
   }
   // Se não houver template, tenta reattach via iCustom de Experts\expert com params simples string
-  string ks[], vs[]; int cnt=ParseParams(pstr, ks, vs);
-  MqlParam inputs[]; ArrayResize(inputs, cnt);
-  for(int i=0;i<cnt;i++) { inputs[i].type=TYPE_STRING; inputs[i].string_value=vs[i]; }
+  MqlParam inputs[]; BuildParams(pstr, inputs);
   int handle=iCustom(sym, tf, "Experts\\"+expert, inputs);
   if(handle==INVALID_HANDLE){ m="iCustom EA fail"; return false; }
   if(!ChartIndicatorAdd(cid, 0, handle)) { m="attach fail"; return false; }
-  g_lastEAName=expert; g_lastEAParams=pstr; g_lastEASymbol=sym; g_lastEATf=p[1];
+  g_lastEAName=expert; g_lastEAParams=pstr; g_lastEASymbol=sym; g_lastEATf=p[1]; g_lastEATpl="";
   m="ea attached"; return true;
 }
 
