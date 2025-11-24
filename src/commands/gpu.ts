@@ -226,6 +226,68 @@ async function runBuildScript(projectDir: string, script: string, opts: { config
   await execa('cmd.exe', ['/C', cmd], { stdio: 'inherit', windowsHide: true });
 }
 
+function findAgentDirs(dataDir: string): string[] {
+  const testerRoot = path.join(dataDir, 'Tester');
+  if (!fs.existsSync(testerRoot) || !fs.statSync(testerRoot).isDirectory()) return [];
+  return fs
+    .readdirSync(testerRoot, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && d.name.toLowerCase().startsWith('agent'))
+    .map((d) => path.join(testerRoot, d.name, 'MQL5', 'Libraries'))
+    .filter((p) => p.length > 0);
+}
+
+async function createLink(linkPath: string, targetPath: string) {
+  await fsExtra.ensureDir(path.dirname(linkPath));
+  if (await fsExtra.pathExists(linkPath)) return;
+  const linkWin = await toWinPath(normalizePath(linkPath));
+  const targetWin = await toWinPath(normalizePath(targetPath));
+  const cmd = `mklink /H "${linkWin}" "${targetWin}"`;
+  await execa('cmd.exe', ['/C', cmd], { stdio: 'inherit', windowsHide: true });
+}
+
+async function linkArtifacts(releaseDir: string, dataDir: string) {
+  const dlls = (await fsExtra.readdir(releaseDir)).filter((f) => f.toLowerCase().endsWith('.dll'));
+  const dllSet = new Set(dlls.map((d) => d.toLowerCase()));
+
+  const mainLib = path.join(dataDir, 'MQL5', 'Libraries');
+  const testerLib = path.join(dataDir, 'Tester', 'MQL5', 'Libraries');
+  const agentLibs = findAgentDirs(dataDir);
+
+  const engineMain = dllSet.has('engine-libraries.dll')
+    ? 'engine-libraries.dll'
+    : dlls.find((d) => d.toLowerCase().includes('engine')) || '';
+  if (engineMain) {
+    await createLink(path.join(mainLib, 'engine.dll'), path.join(releaseDir, engineMain));
+  }
+
+  if (dllSet.has('engine-tester.dll') && (await fsExtra.pathExists(path.join(releaseDir, 'engine-tester.dll')))) {
+    await createLink(path.join(testerLib, 'engine.dll'), path.join(releaseDir, 'engine-tester.dll'));
+  }
+
+  for (let idx = 0; idx < agentLibs.length; idx++) {
+    const libDir = agentLibs[idx];
+    const candidate = `engine-agent${idx}.dll`;
+    const target = dllSet.has(candidate.toLowerCase()) ? candidate : engineMain;
+    if (target) {
+      await createLink(path.join(libDir, 'engine.dll'), path.join(releaseDir, target));
+    }
+  }
+
+  const linkDeps = async (libDir: string) => {
+    await fsExtra.ensureDir(libDir);
+    for (const f of dlls) {
+      if (f.toLowerCase().startsWith('engine')) continue;
+      await createLink(path.join(libDir, f), path.join(releaseDir, f));
+    }
+  };
+
+  await linkDeps(mainLib);
+  await linkDeps(testerLib);
+  for (const lib of agentLibs) {
+    await linkDeps(lib);
+  }
+}
+
 export function registerGpuCommands(program: Command) {
   const gpu = program.command('gpu').description('Build/link das DLLs GPU');
 
@@ -346,8 +408,16 @@ export function registerGpuCommands(program: Command) {
         console.log(chalk.green(`[gpu build] copiado ${f} -> ${buildMirror}`));
       }
 
+      const info = await store.useOrThrow();
+      if (!info.data_dir) throw new Error('data_dir do projeto ativo não configurado.');
+      await linkArtifacts(releaseDir, info.data_dir);
+
       if (opts.copyToLibs) {
-        console.log(chalk.yellow('[gpu build] --copy-to-libs é legado; artefatos permanecem no diretório de build.'));
+        console.log(
+          chalk.yellow(
+            '[gpu build] --copy-to-libs é legado; já foram criados links a partir do diretório de build. Nenhuma cópia física foi feita.'
+          )
+        );
       }
     });
 }
