@@ -106,8 +106,8 @@ export async function installTerminalForProject(projectId: string, baseTerminalF
   }
 
   // Pastas esperadas
-  const dataDir = path.join(destRoot, 'MQL5');
-  const libs = path.join(dataDir, 'Libraries');
+  const dataDir = destRoot; // raiz do data_dir (contém MQL5, Config, Logs, etc.)
+  const libs = path.join(destRoot, 'MQL5', 'Libraries');
   await fs.ensureDir(libs);
 
   const terminalExe = path.join(destRoot, 'terminal64.exe');
