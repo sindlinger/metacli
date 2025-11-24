@@ -12,6 +12,7 @@ import { registerDllCommands } from './commands/dll.js';
 import { registerUtilsCommands } from './commands/utils.js';
 import { registerConfigCommands } from './commands/config.js';
 import { registerQuickCommands } from './commands/quick.js';
+import { registerGlobalsCommands } from './commands/globals.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -27,6 +28,7 @@ async function main() {
 
   registerInitCommand(program);
   registerQuickCommands(program);
+  registerGlobalsCommands(program);
   registerProjectCommands(program);
   registerChartCommands(program);
   registerIndicatorCommands(program);
@@ -44,7 +46,8 @@ async function main() {
       '  mtcli compile -i \\Indicators\\Examples\\ZigZag\n' +
       '  mtcli run -i Examples\\ZigZag\n' +
       '  mtcli run -e Moving_Average -v\n' +
-      '  mtcli chart capture\n'
+      '  mtcli chart capture\n' +
+      '  mtcli globals list\n'
   );
 
   try {
