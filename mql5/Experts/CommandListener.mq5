@@ -115,6 +115,25 @@ int SubwindowSafe(const string val)
   return (v<=0)?1:v;
 }
 
+int ParseParams(const string pstr, string &keys[], string &vals[])
+{
+  if(pstr=="") return 0;
+  string pairs[]; int n=StringSplit(pstr, ';', pairs);
+  int count=0;
+  ArrayResize(keys, n); ArrayResize(vals, n);
+  for(int i=0;i<n;i++)
+  {
+    string kv[]; int c=StringSplit(pairs[i], '=', kv);
+    if(c==2)
+    {
+      keys[count]=kv[0]; vals[count]=kv[1];
+      count++;
+    }
+  }
+  ArrayResize(keys, count); ArrayResize(vals, count);
+  return count;
+}
+
 // Handlers ----------------------------------------------------------------
 bool H_Ping(string p[], string &m, string &d[]) { m="pong "+LISTENER_VERSION; return true; }
 
@@ -134,9 +153,13 @@ bool H_AttachInd(string p[], string &m, string &d[])
 {
   if(ArraySize(p)<4){ m="params"; return false; }
   string sym=p[0]; string tfstr=p[1]; string name=p[2]; int sub=SubwindowSafe(p[3]);
+  string pstr = (ArraySize(p)>4)?p[4]:"";
   ENUM_TIMEFRAMES tf=TfFromString(tfstr); if(tf==0){ m="tf"; return false; }
   long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
-  int handle=iCustom(sym, tf, name);
+  string ks[], vs[]; int cnt=ParseParams(pstr, ks, vs);
+  MqlParam inputs[]; ArrayResize(inputs, cnt);
+  for(int i=0;i<cnt;i++) { inputs[i].type=TYPE_STRING; inputs[i].string_value=vs[i]; }
+  int handle=iCustom(sym, tf, name, inputs);
   if(handle==INVALID_HANDLE){ m="iCustom fail"; return false; }
   if(!ChartIndicatorAdd(cid, sub-1, handle)){ m="ChartIndicatorAdd"; return false; }
   m="indicator attached"; return true;
@@ -199,14 +222,23 @@ bool H_AttachEA(string p[], string &m, string &d[])
   if(ArraySize(p)<3){ m="params"; return false; }
   string sym=p[0]; ENUM_TIMEFRAMES tf=TfFromString(p[1]); string expert=p[2];
   string tpl = (ArraySize(p)>3 && p[3]!="") ? p[3] : "";
+  string pstr = (ArraySize(p)>4)?p[4]:"";
   long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
   string tplPath="MQL5\\Profiles\\Templates\\"+tpl;
   if(tpl!="" && FileIsExist(tplPath))
   {
     if(!ChartApplyTemplate(cid, tpl)) { m="ChartApplyTemplate"; return false; }
+    // params extras ignorados aqui; template já deve conter inputs desejados
     m="template applied (EA)"; return true;
   }
-  m="attach EA via template only"; return false;
+  // Se não houver template, tenta reattach via iCustom de Experts\expert com params simples string
+  string ks[], vs[]; int cnt=ParseParams(pstr, ks, vs);
+  MqlParam inputs[]; ArrayResize(inputs, cnt);
+  for(int i=0;i<cnt;i++) { inputs[i].type=TYPE_STRING; inputs[i].string_value=vs[i]; }
+  int handle=iCustom(sym, tf, "Experts\\"+expert, inputs);
+  if(handle==INVALID_HANDLE){ m="iCustom EA fail"; return false; }
+  if(!ChartIndicatorAdd(cid, 0, handle)) { m="attach fail"; return false; }
+  m="ea attached"; return true;
 }
 
 bool H_DetachEA(string p[], string &m, string &d[])
