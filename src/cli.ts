@@ -9,7 +9,6 @@ import { registerTesterCommands } from './commands/tester.js';
 import { registerEditorCommands } from './commands/editor.js';
 import { registerDllCommands } from './commands/dll.js';
 import { registerUtilsCommands } from './commands/utils.js';
-import { registerConfigCommands } from './commands/config.js';
 import { registerQuickCommands } from './commands/quick.js';
 import { registerGlobalsCommands } from './commands/globals.js';
 import { registerEventsCommands } from './commands/events.js';
@@ -23,7 +22,7 @@ import { registerSyncCommands } from './commands/sync.js';
 import { registerReportCommands } from './commands/report.js';
 import { registerTradeCommands } from './commands/trade.js';
 import { registerCopyCommands } from './commands/rawcopy.js';
-import { registerTerminalCommands } from './commands/terminal.js';
+import { registerConfigCommands } from './commands/terminal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -51,7 +50,7 @@ async function main() {
   registerReportCommands(program);
   registerTradeCommands(program);
   registerCopyCommands(program);
-  registerTerminalCommands(program);
+  registerConfigCommands(program);
   registerChartCommands(program);
   registerIndicatorCommands(program);
   registerExpertCommands(program);

@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import path from 'path';
 import fs from 'fs-extra';
 import chalk from 'chalk';
-import { ProjectStore } from '../config/projectStore.js';
+import { ProjectStore, projectsFilePath } from '../config/projectStore.js';
 import { runCommand } from '../utils/shell.js';
 
 function iniSet(filePath: string, section: string, key: string, value: string) {
@@ -307,8 +307,8 @@ function testerIniPath(dataDir: string, file?: string) {
   return path.join(dataDir, file || 'tester.ini');
 }
 
-export function registerTerminalCommands(program: Command) {
-  const term = program.command('terminal').description('Operações diretas no terminal (fora do listener)');
+export function registerConfigCommands(program: Command) {
+  const term = program.command('config').description('Configurações e operações diretas do MT5');
 
   term
     .command('start')
@@ -422,6 +422,29 @@ export function registerTerminalCommands(program: Command) {
       if (entries.length > max) {
         console.log(chalk.gray(`... (${entries.length - max} ocultos, use --max para ver mais)`));
       }
+    });
+
+  term
+    .command('env')
+    .description('Mostra variáveis de ambiente relevantes do mtcli')
+    .action(() => {
+      const envs = [
+        'MTCLI_BASE_TERMINAL',
+        'MTCLI_BASE_TERMINAL_DIR',
+        'MTCLI_MT5_INSTALLER_URL',
+        'MTCLI_PROJECTS',
+        'MTCLI_DATA_DIR',
+        'MTCLI_DEBUG',
+      ];
+      console.log(chalk.cyan('Variáveis de ambiente:'));
+      envs.forEach((k) => console.log(`  ${k}=${process.env[k] ?? ''}`));
+    });
+
+  term
+    .command('path')
+    .description('Mostra o caminho do mtcli_projects.json')
+    .action(() => {
+      console.log(chalk.cyan(projectsFilePath()));
     });
 
   term
