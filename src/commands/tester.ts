@@ -9,6 +9,49 @@ import { runCommand } from '../utils/shell.js';
 const store = new ProjectStore();
 const DEFAULT_TESTER_INI = path.join(repoRoot(), 'tester_visual.ini');
 
+function iniSet(filePath: string, section: string, key: string, value: string) {
+  let lines: string[] = [];
+  if (fs.existsSync(filePath)) {
+    lines = fs.readFileSync(filePath, 'utf8').replace(/\r/g, '').split('\n');
+  }
+  let secStart = -1;
+  let secEnd = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('[') && line.endsWith(']')) {
+      const name = line.slice(1, -1);
+      if (name.toLowerCase() === section.toLowerCase()) {
+        secStart = i;
+      } else if (secStart >= 0) {
+        secEnd = i;
+        break;
+      }
+    }
+  }
+  if (secStart === -1) {
+    lines.push(`[${section}]`);
+    lines.push(`${key}=${value}`);
+  } else {
+    let found = false;
+    for (let i = secStart + 1; i < secEnd; i++) {
+      const line = lines[i];
+      const idx = line.indexOf('=');
+      if (idx > -1) {
+        const k = line.slice(0, idx).trim();
+        if (k.toLowerCase() === key.toLowerCase()) {
+          lines[i] = `${key}=${value}`;
+          found = true;
+          break;
+        }
+      }
+    }
+    if (!found) {
+      lines.splice(secEnd, 0, `${key}=${value}`);
+    }
+  }
+  fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
+}
+
 export function registerTesterCommands(program: Command) {
   const tester = program.command('tester').description('Opera o Strategy Tester');
 
@@ -118,5 +161,39 @@ export function registerTesterCommands(program: Command) {
           await execa('mtcli', ['tester', 'quick', ...argsBase], { stdio: 'inherit' });
         }
       }
+    });
+
+  tester
+    .command('ini-show')
+    .description('Mostra tester.ini do projeto (ou arquivo indicado)')
+    .option('--file <path>', 'Arquivo ini (default tester.ini)')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      if (!info.data_dir) throw new Error('data_dir não configurado.');
+      const iniPath = normalizePath(opts.file || path.join(info.data_dir!, 'tester.ini'));
+      if (!(await fs.pathExists(iniPath))) {
+        console.log(chalk.yellow(`tester ini não encontrado em ${iniPath}`));
+        return;
+      }
+      const content = await fs.readFile(iniPath, 'utf8');
+      console.log(content);
+    });
+
+  tester
+    .command('ini-set')
+    .description('Altera chave em tester.ini (default em data_dir/tester.ini)')
+    .requiredOption('--key <key>')
+    .requiredOption('--value <value>')
+    .option('--section <name>', 'Seção (default Tester)', 'Tester')
+    .option('--file <path>', 'Arquivo ini (default tester.ini)')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      if (!info.data_dir) throw new Error('data_dir não configurado.');
+      const iniPath = normalizePath(opts.file || path.join(info.data_dir!, 'tester.ini'));
+      await fs.ensureDir(path.dirname(iniPath));
+      iniSet(iniPath, opts.section, opts.key, opts.value);
+      console.log(chalk.green(`[tester] ${opts.section}.${opts.key}=${opts.value} em ${iniPath}`));
     });
 }

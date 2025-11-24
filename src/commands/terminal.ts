@@ -171,40 +171,6 @@ export function registerTerminalCommands(program: Command) {
     });
 
   term
-    .command('tester-show')
-    .description('Mostra tester.ini do projeto (ou arquivo indicado)')
-    .option('--file <path>', 'Arquivo ini (default tester.ini)')
-    .option('--project <id>', 'Projeto alvo')
-    .action(async (opts) => {
-      const info = await store.useOrThrow(opts.project);
-      if (!info.data_dir) throw new Error('data_dir não configurado.');
-      const iniPath = testerIniPath(info.data_dir, opts.file);
-      if (!fs.existsSync(iniPath)) {
-        console.log(chalk.yellow(`tester ini não encontrado em ${iniPath}`));
-        return;
-      }
-      const content = await fs.readFile(iniPath, 'utf8');
-      console.log(content);
-    });
-
-  term
-    .command('tester-set')
-    .description('Altera chave em tester.ini (default em data_dir/tester.ini)')
-    .requiredOption('--key <key>')
-    .requiredOption('--value <value>')
-    .option('--section <name>', 'Seção (default Tester)', 'Tester')
-    .option('--file <path>', 'Arquivo ini (default tester.ini)')
-    .option('--project <id>', 'Projeto alvo')
-    .action(async (opts) => {
-      const info = await store.useOrThrow(opts.project);
-      if (!info.data_dir) throw new Error('data_dir não configurado.');
-      const iniPath = testerIniPath(info.data_dir, opts.file);
-      await fs.ensureDir(path.dirname(iniPath));
-      iniSet(iniPath, opts.section, opts.key, opts.value);
-      console.log(chalk.green(`[terminal] ${opts.section}.${opts.key}=${opts.value} em ${iniPath}`));
-    });
-
-  term
     .command('config-template')
     .description('Gera um common.ini básico para usar com /config')
     .option('--out <file>', 'Destino', 'common.ini')
