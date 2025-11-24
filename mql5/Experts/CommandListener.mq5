@@ -16,7 +16,7 @@ CTrade trade;
 
 string g_files_dir;
 int    g_timer_sec = 1;
-string LISTENER_VERSION = "1.0.3";
+string LISTENER_VERSION = "1.0.4";
 
 // Armazena último attach para inputs simples
 string g_lastIndName = "";
@@ -169,6 +169,10 @@ int BuildParams(const string pstr, MqlParam &outParams[])
   }
   return cnt;
 }
+
+double ToDoubleSafe(const string v) { return StrToDouble(v); }
+int ToIntSafe(const string v) { return (int)StrToInteger(v); }
+color ToColorSafe(const string v) { return (v=="") ? clrWhite : (color)StringToInteger(v); }
 
 // Handlers ----------------------------------------------------------------
 bool H_Ping(string p[], string &m, string &d[]) { m="pong "+LISTENER_VERSION; return true; }
@@ -456,8 +460,16 @@ bool H_ObjCreate(string p[], string &m, string &d[])
   string txt=PayloadGet(payload,"text");
   string clrstr=PayloadGet(payload,"color");
   color clr = (clrstr=="") ? clrWhite : (color)StringToInteger(clrstr);
-  int style=(int)StrToInteger(PayloadGet(payload,"style"));
-  int width=(int)StrToInteger(PayloadGet(payload,"width"));
+  int style=ToIntSafe(PayloadGet(payload,"style"));
+  int width=ToIntSafe(PayloadGet(payload,"width"));
+  int anchor=ToIntSafe(PayloadGet(payload,"anchor"));
+  int xdist=ToIntSafe(PayloadGet(payload,"x"));
+  int ydist=ToIntSafe(PayloadGet(payload,"y"));
+  int fontsize=ToIntSafe(PayloadGet(payload,"fontsize"));
+  string font=PayloadGet(payload,"font");
+  bool back = (PayloadGet(payload,"back")=="1");
+  bool selectable = (PayloadGet(payload,"selectable")!="0");
+  bool hidden = (PayloadGet(payload,"hidden")=="1");
   long cid=ChartID();
   ENUM_OBJECT ot=(ENUM_OBJECT)ObjectTypeFromString(type);
   bool ok=ObjectCreate(cid, name, ot, 0, t1, p1, t2, p2);
@@ -466,6 +478,15 @@ bool H_ObjCreate(string p[], string &m, string &d[])
   if(style>0) ObjectSetInteger(cid,name,OBJPROP_STYLE,style);
   if(width>0) ObjectSetInteger(cid,name,OBJPROP_WIDTH,width);
   ObjectSetInteger(cid,name,OBJPROP_COLOR,clr);
+  if(fontsize>0) ObjectSetInteger(cid,name,OBJPROP_FONTSIZE,fontsize);
+  if(font!="") ObjectSetString(cid,name,OBJPROP_FONT,font);
+  if(anchor>0) ObjectSetInteger(cid,name,OBJPROP_ANCHOR,anchor);
+  if(xdist>0) ObjectSetInteger(cid,name,OBJPROP_XDISTANCE,xdist);
+  if(ydist>0) ObjectSetInteger(cid,name,OBJPROP_YDISTANCE,ydist);
+  ObjectSetInteger(cid,name,OBJPROP_BACK,back);
+  ObjectSetInteger(cid,name,OBJPROP_SELECTED,false);
+  ObjectSetInteger(cid,name,OBJPROP_SELECTABLE,selectable);
+  ObjectSetInteger(cid,name,OBJPROP_HIDDEN,hidden);
   m="created"; return true;
 }
 
