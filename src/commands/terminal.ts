@@ -67,9 +67,89 @@ function renderConfigTemplate(opts: any) {
   lines.push(opts.password ? `Password=${opts.password}` : 'Password=');
   lines.push(opts.server ? `Server=${opts.server}` : 'Server=');
   lines.push(opts.certPassword ? `CertPassword=${opts.certPassword}` : 'CertPassword=');
+  if (typeof opts.proxyEnable !== 'undefined') lines.push(`ProxyEnable=${opts.proxyEnable ? 1 : 0}`);
+  if (typeof opts.proxyType !== 'undefined') lines.push(`ProxyType=${opts.proxyType}`);
+  if (typeof opts.proxyAddress !== 'undefined') lines.push(`ProxyAddress=${opts.proxyAddress}`);
+  if (typeof opts.proxyLogin !== 'undefined') lines.push(`ProxyLogin=${opts.proxyLogin}`);
+  if (typeof opts.proxyPassword !== 'undefined') lines.push(`ProxyPassword=${opts.proxyPassword}`);
+  if (typeof opts.keepPrivate !== 'undefined') lines.push(`KeepPrivate=${opts.keepPrivate ? 1 : 0}`);
+  if (typeof opts.newsEnable !== 'undefined') lines.push(`NewsEnable=${opts.newsEnable ? 1 : 0}`);
+  if (typeof opts.certInstall !== 'undefined') lines.push(`CertInstall=${opts.certInstall ? 1 : 0}`);
+  if (typeof opts.mql5Login !== 'undefined') lines.push(`MQL5Login=${opts.mql5Login}`);
+  if (typeof opts.mql5Password !== 'undefined') lines.push(`MQL5Password=${opts.mql5Password}`);
   lines.push(opts.profile ? `ProfileLast=${opts.profile}` : 'ProfileLast=');
   lines.push(opts.profile ? `Profile=${opts.profile}` : 'Profile=');
   lines.push('');
+
+  // Charts section
+  const hasCharts = Boolean(
+    typeof opts.chartsProfile !== 'undefined' ||
+      typeof opts.maxBars !== 'undefined' ||
+      typeof opts.printColor !== 'undefined' ||
+      typeof opts.saveDeleted !== 'undefined'
+  );
+  if (hasCharts) {
+    lines.push('[Charts]');
+    lines.push(typeof opts.chartsProfile !== 'undefined' ? `ProfileLast=${opts.chartsProfile}` : 'ProfileLast=');
+    if (typeof opts.maxBars !== 'undefined') lines.push(`MaxBars=${opts.maxBars}`);
+    if (typeof opts.printColor !== 'undefined') lines.push(`PrintColor=${opts.printColor ? 1 : 0}`);
+    if (typeof opts.saveDeleted !== 'undefined') lines.push(`SaveDeleted=${opts.saveDeleted ? 1 : 0}`);
+    lines.push('');
+  }
+
+  // Experts section
+  const hasExperts = Boolean(
+    typeof opts.allowLiveTrading !== 'undefined' ||
+      typeof opts.allowDll !== 'undefined' ||
+      typeof opts.expertsEnabled !== 'undefined' ||
+      typeof opts.expertsAccount !== 'undefined' ||
+      typeof opts.expertsProfile !== 'undefined'
+  );
+  if (hasExperts) {
+    lines.push('[Experts]');
+    if (typeof opts.allowLiveTrading !== 'undefined') lines.push(`AllowLiveTrading=${opts.allowLiveTrading ? 1 : 0}`);
+    if (typeof opts.allowDll !== 'undefined') lines.push(`AllowDllImport=${opts.allowDll ? 1 : 0}`);
+    if (typeof opts.expertsEnabled !== 'undefined') lines.push(`Enabled=${opts.expertsEnabled ? 1 : 0}`);
+    if (typeof opts.expertsAccount !== 'undefined') lines.push(`Account=${opts.expertsAccount ? 1 : 0}`);
+    if (typeof opts.expertsProfile !== 'undefined') lines.push(`Profile=${opts.expertsProfile ? 1 : 0}`);
+    lines.push('');
+  }
+
+  // Objects section
+  const hasObjects = Boolean(
+    typeof opts.showPropsOnCreate !== 'undefined' ||
+      typeof opts.selectOneClick !== 'undefined' ||
+      typeof opts.magnetSens !== 'undefined'
+  );
+  if (hasObjects) {
+    lines.push('[Objects]');
+    if (typeof opts.showPropsOnCreate !== 'undefined') lines.push(`ShowPropertiesOnCreate=${opts.showPropsOnCreate ? 1 : 0}`);
+    if (typeof opts.selectOneClick !== 'undefined') lines.push(`SelectOneClick=${opts.selectOneClick ? 1 : 0}`);
+    if (typeof opts.magnetSens !== 'undefined') lines.push(`MagnetSens=${opts.magnetSens}`);
+    lines.push('');
+  }
+
+  // Email section
+  const hasEmail = Boolean(
+    typeof opts.emailEnable !== 'undefined' ||
+      typeof opts.emailServer !== 'undefined' ||
+      typeof opts.emailAuth !== 'undefined' ||
+      typeof opts.emailLogin !== 'undefined' ||
+      typeof opts.emailPassword !== 'undefined' ||
+      typeof opts.emailFrom !== 'undefined' ||
+      typeof opts.emailTo !== 'undefined'
+  );
+  if (hasEmail) {
+    lines.push('[Email]');
+    if (typeof opts.emailEnable !== 'undefined') lines.push(`Enable=${opts.emailEnable ? 1 : 0}`);
+    if (typeof opts.emailServer !== 'undefined') lines.push(`Server=${opts.emailServer}`);
+    if (typeof opts.emailAuth !== 'undefined') lines.push(`Auth=${opts.emailAuth}`);
+    if (typeof opts.emailLogin !== 'undefined') lines.push(`Login=${opts.emailLogin}`);
+    if (typeof opts.emailPassword !== 'undefined') lines.push(`Password=${opts.emailPassword}`);
+    if (typeof opts.emailFrom !== 'undefined') lines.push(`From=${opts.emailFrom}`);
+    if (typeof opts.emailTo !== 'undefined') lines.push(`To=${opts.emailTo}`);
+    lines.push('');
+  }
 
   // StartUp section (auto-open chart / attach EA/script)
   const hasStartUp = Boolean(
@@ -273,6 +353,40 @@ export function registerTerminalCommands(program: Command) {
     .option('--server <srv>')
     .option('--cert-password <pass>')
     .option('--profile <name>')
+    // Common/network
+    .option('--proxy-enable', 'ProxyEnable=1', false)
+    .option('--proxy-type <0|1|2>', 'ProxyType (0 SOCKS4, 1 SOCKS5, 2 HTTP)')
+    .option('--proxy-address <host:port>', 'ProxyAddress')
+    .option('--proxy-login <user>', 'ProxyLogin')
+    .option('--proxy-password <pass>', 'ProxyPassword')
+    .option('--keep-private', 'KeepPrivate=1', false)
+    .option('--news-enable', 'NewsEnable=1', false)
+    .option('--cert-install', 'CertInstall=1', false)
+    .option('--mql5-login <user>', 'MQL5Login')
+    .option('--mql5-password <pass>', 'MQL5Password')
+    // Charts
+    .option('--charts-profile <name>', 'ProfileLast em [Charts]')
+    .option('--max-bars <n>', 'MaxBars')
+    .option('--print-color', 'PrintColor=1', false)
+    .option('--save-deleted', 'SaveDeleted=1', false)
+    // Experts
+    .option('--allow-live-trading', 'AllowLiveTrading=1', false)
+    .option('--allow-dll', 'AllowDllImport=1', false)
+    .option('--experts-enabled', 'Experts Enabled=1', false)
+    .option('--experts-account', 'Account=1 (desabilita EAs ao mudar login)', false)
+    .option('--experts-profile', 'Profile=1 (desabilita EAs ao mudar profile)', false)
+    // Objects
+    .option('--show-props-on-create', 'ShowPropertiesOnCreate=1', false)
+    .option('--select-one-click', 'SelectOneClick=1', false)
+    .option('--magnet-sens <n>', 'MagnetSens')
+    // Email
+    .option('--email-enable', 'Email Enable=1', false)
+    .option('--email-server <srv>', 'Email Server')
+    .option('--email-auth <blob>', 'Email Auth')
+    .option('--email-login <user>', 'Email Login')
+    .option('--email-password <pass>', 'Email Password')
+    .option('--email-from <name@addr>', 'Email From')
+    .option('--email-to <name@addr>', 'Email To')
     // StartUp
     .option('--start-expert <path>', 'EA para abrir na inicialização (Examples\\MACD\\MACD Sample)')
     .option('--start-expert-params <file>', 'Arquivo .set em MQL5\\presets')
@@ -282,6 +396,36 @@ export function registerTerminalCommands(program: Command) {
     .option('--start-script <path>', 'Script para abrir na inicialização')
     .option('--start-script-params <file>', 'Arquivo .set do script (MQL5\\presets)')
     .option('--start-shutdown', 'Encerrar terminal ao fim do script (ShutdownTerminal=1)', false)
+    // Common/network/charts/experts/objects/email
+    .option('--proxy-enable', 'ProxyEnable=1', false)
+    .option('--proxy-type <0|1|2>')
+    .option('--proxy-address <host:port>')
+    .option('--proxy-login <user>')
+    .option('--proxy-password <pass>')
+    .option('--keep-private', 'KeepPrivate=1', false)
+    .option('--news-enable', 'NewsEnable=1', false)
+    .option('--cert-install', 'CertInstall=1', false)
+    .option('--mql5-login <user>')
+    .option('--mql5-password <pass>')
+    .option('--charts-profile <name>')
+    .option('--max-bars <n>')
+    .option('--print-color', 'PrintColor=1', false)
+    .option('--save-deleted', 'SaveDeleted=1', false)
+    .option('--allow-live-trading', 'AllowLiveTrading=1', false)
+    .option('--allow-dll', 'AllowDllImport=1', false)
+    .option('--experts-enabled', 'Experts Enabled=1', false)
+    .option('--experts-account', 'Account=1', false)
+    .option('--experts-profile', 'Profile=1', false)
+    .option('--show-props-on-create', 'ShowPropertiesOnCreate=1', false)
+    .option('--select-one-click', 'SelectOneClick=1', false)
+    .option('--magnet-sens <n>')
+    .option('--email-enable', 'Email Enable=1', false)
+    .option('--email-server <srv>')
+    .option('--email-auth <blob>')
+    .option('--email-login <user>')
+    .option('--email-password <pass>')
+    .option('--email-from <name@addr>')
+    .option('--email-to <name@addr>')
     // Tester
     .option('--tester-expert <path>', 'EA para testar')
     .option('--tester-params <file>', 'Parâmetros do EA (Profiles\\Tester\\*.set)')
