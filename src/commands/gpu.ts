@@ -37,6 +37,8 @@ const DEFAULT_RELEASE_ROOTS: Array<string | undefined> = [
   '/mnt/c/mql5/Gen2Alglib/Gen2alglibfft',
 ];
 
+const GPU_PROJECTS_DIR = path.join(repoRoot(), 'GPU-dll_projects');
+
 function collectPaths(value: string, previous: string[] = []) {
   previous.push(value);
   return previous;
@@ -142,6 +144,28 @@ function reportReleaseArtifacts(releaseDir: string) {
   printTable(rows, ['Artifact', 'File', 'State', 'Modified', 'Path']);
 }
 
+async function listGpuProjects() {
+  if (!(await fsExtra.pathExists(GPU_PROJECTS_DIR))) {
+    console.log(chalk.yellow(`Nenhum projeto GPU: pasta ausente (${GPU_PROJECTS_DIR})`));
+    return;
+  }
+  const entries = await fsExtra.readdir(GPU_PROJECTS_DIR, { withFileTypes: true });
+  const dirs = entries.filter((e) => e.isDirectory());
+  if (dirs.length === 0) {
+    console.log(chalk.yellow('Nenhum projeto GPU encontrado.'));
+    return;
+  }
+  for (const dir of dirs) {
+    const full = path.join(GPU_PROJECTS_DIR, dir.name);
+    const files = (await fsExtra.readdir(full)).filter((f) => f.toLowerCase().endsWith('.dll'));
+    const mark = files.length > 0 ? chalk.green('DLLs') : chalk.red('sem DLL');
+    console.log(`${chalk.cyan(dir.name)} ${mark}`);
+    if (files.length) {
+      files.sort().forEach((f) => console.log(`  - ${f}`));
+    }
+  }
+}
+
 export function registerGpuCommands(program: Command) {
   const gpu = program.command('gpu').description('Build/link das DLLs GPU');
 
@@ -206,5 +230,12 @@ export function registerGpuCommands(program: Command) {
       if (errors > 0) {
         throw new Error(`Alguns links falharam (${errors}). Veja a tabela acima.`);
       }
+    });
+
+  gpu
+    .command('list')
+    .description('Lista projetos GPU em GPU-dll_projects e suas DLLs')
+    .action(async () => {
+      await listGpuProjects();
     });
 }
