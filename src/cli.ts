@@ -19,6 +19,7 @@ import { registerTradeCommands } from './commands/trade.js';
 import { registerCopyCommands } from './commands/rawcopy.js';
 import { registerConfigCommands } from './commands/terminal.js';
 import { registerVerifyCommands } from './commands/verify.js';
+import { registerLogsCommands } from './commands/logs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -42,7 +43,6 @@ async function main() {
   registerSnapshotCommands(program);
   registerTradeCommands(program);
   registerCopyCommands(program);
-  registerConfigCommands(program);
   registerChartCommands(program);
   registerIndicatorCommands(program);
   registerExpertCommands(program);
@@ -51,6 +51,7 @@ async function main() {
   registerUtilsCommands(program);
   registerVerifyCommands(program);
   registerConfigCommands(program);
+  registerLogsCommands(program);
 
   program.addHelpText(
     'after',
