@@ -8,8 +8,11 @@ import { promptYesNo } from './prompt.js';
 
 const INSTALLER_URL =
   process.env.MTCLI_MT5_INSTALLER_URL || 'https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe';
-const DOWNLOADS_ROOT = path.join(repoRoot(), 'projects', 'terminals', '_downloads');
-const FRESH_DIR = path.join(DOWNLOADS_ROOT, 'mt5-fresh');
+
+// BASE_TERMINAL_DIR: onde guardamos todos os terminais baixados/instalados
+const BASE_TERMINAL_DIR = process.env.MTCLI_BASE_TERMINAL_DIR || path.join(repoRoot(), 'projects', 'terminals', '_base');
+const DOWNLOADS_ROOT = path.join(BASE_TERMINAL_DIR, '_downloads');
+const FRESH_DIR = path.join(BASE_TERMINAL_DIR, 'mt5-fresh');
 const INSTALLER_PATH = path.join(DOWNLOADS_ROOT, 'mt5setup.exe');
 
 const TERMINAL_EXE = 'terminal64.exe';
