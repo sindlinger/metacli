@@ -83,7 +83,21 @@ async function main() {
       '\n  mtcli chart capture' +
       '\n  mtcli logs --type terminal' +
       '\n  mtcli verify' +
-      '\n  mtcli tester quick --expert MyEA --symbol EURUSD --period H1\n'
+      '\n  mtcli tester quick --expert MyEA --symbol EURUSD --period H1' +
+      '\n' +
+      chalk.bold('\nExemplos por comando:') +
+      '\n  init                mtcli init' +
+      '\n  compile             mtcli compile -e MyEA.mq5' +
+      '\n  run                 mtcli run -e MyEA --visual' +
+      '\n  chart capture       mtcli chart capture --symbol EURUSD --period H1' +
+      '\n  chart objects list  mtcli chart objects list' +
+      '\n  logs                mtcli logs --type mql5 --lines 100' +
+      '\n  verify              mtcli verify' +
+      '\n  config paths        mtcli config paths' +
+      '\n  config ls           mtcli config ls --scope mql5 --path Experts' +
+      '\n  tester quick        mtcli tester quick --expert MyEA --symbol EURUSD --period H1' +
+      '\n  gpu link            mtcli gpu link --config Release' +
+      '\n'
   );
 
   try {
