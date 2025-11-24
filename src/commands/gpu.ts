@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import { execa } from 'execa';
 import { ProjectStore, repoRoot } from '../config/projectStore.js';
 import { normalizePath, platformIsWindows, resolvePowerShell, toWinPath } from '../utils/paths.js';
+import os from 'os';
 
 const store = new ProjectStore();
 
@@ -195,6 +196,36 @@ async function listRootBuilds() {
   }
 }
 
+function guessVsVarsBat(): string | null {
+  const candidates = [
+    'C:/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Auxiliary/Build/vcvars64.bat',
+    'C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Auxiliary/Build/vcvars64.bat',
+    'C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat',
+    'C:/Program Files (x86)/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat',
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
+async function runBuildScript(projectDir: string, script: string, opts: { config?: string; arch?: string }) {
+  if (!platformIsWindows()) {
+    throw new Error('gpu build requer Windows/WSL com interop habilitado.');
+  }
+  const fullScript = path.join(projectDir, script);
+  if (!(await fsExtra.pathExists(fullScript))) {
+    throw new Error(`Script de build não encontrado: ${fullScript}`);
+  }
+  const vcvars = guessVsVarsBat();
+  const cfg = opts.config || 'Release';
+  const arch = opts.arch || 'x64';
+  const cmd = vcvars
+    ? `call "${vcvars}" && cd /d "${projectDir}" && ${script} ${cfg}`
+    : `cd /d "${projectDir}" && ${script} ${cfg}`;
+  await execa('cmd.exe', ['/C', cmd], { stdio: 'inherit', windowsHide: true });
+}
+
 export function registerGpuCommands(program: Command) {
   const gpu = program.command('gpu').description('Build/link das DLLs GPU');
 
@@ -268,5 +299,34 @@ export function registerGpuCommands(program: Command) {
       await listGpuProjects();
       console.log('');
       await listRootBuilds();
+    });
+
+  gpu
+    .command('build')
+    .description('Build genérico de um projeto GPU (agnóstico), chamando scripts existentes')
+    .requiredOption('--project <name>', 'Nome da subpasta em GPU-dll_projects')
+    .option('--script <file>', 'Script de build (default: build_cmd.bat)', 'build_cmd.bat')
+    .option('--config <cfg>', 'Config (Release/Debug)', 'Release')
+    .option('--arch <arch>', 'Arquitetura (x64)', 'x64')
+    .option('--copy-to-libs', 'Copia o output (Release) para MQL5/Libraries do projeto ativo', false)
+    .action(async (opts) => {
+      const projDir = path.join(GPU_PROJECTS_DIR, opts.project);
+      if (!(await fsExtra.pathExists(projDir))) {
+        throw new Error(`Projeto GPU não encontrado: ${projDir}`);
+      }
+      await runBuildScript(projDir, opts.script, { config: opts.config, arch: opts.arch });
+
+      if (opts.copyToLibs) {
+        const info = await store.useOrThrow();
+        if (!info.data_dir) throw new Error('data_dir do projeto ativo não configurado.');
+        const releaseDir = path.join(projDir, 'build-win', opts.config);
+        const libsDest = path.join(info.data_dir, 'MQL5', 'Libraries');
+        await fsExtra.ensureDir(libsDest);
+        const dlls = (await fsExtra.readdir(releaseDir)).filter((f) => f.toLowerCase().endsWith('.dll') || f.toLowerCase().endsWith('.exe'));
+        for (const f of dlls) {
+          await fsExtra.copy(path.join(releaseDir, f), path.join(libsDest, f), { overwrite: true });
+          console.log(chalk.green(`[gpu build] copiado ${f} -> ${libsDest}`));
+        }
+      }
     });
 }
