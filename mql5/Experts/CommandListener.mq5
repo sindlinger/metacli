@@ -16,7 +16,7 @@ CTrade trade;
 
 string g_files_dir;
 int    g_timer_sec = 1;
-string LISTENER_VERSION = "1.0.4";
+string LISTENER_VERSION = "1.0.5";
 
 // Armazena último attach para inputs simples
 string g_lastIndName = "";
