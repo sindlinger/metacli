@@ -48,15 +48,10 @@ function formatTimestamp(ts: number): string {
 
 function printTable(rows: string[][], headers: string[]) {
   const widths = headers.map((header, idx) => Math.max(header.length, ...rows.map((row) => (row[idx] || '').length)));
-  const line = (values: string[]) =>
-    values
-      .map((value, idx) => value.padEnd(widths[idx], ' '))
-      .join('  ');
+  const line = (values: string[]) => values.map((value, idx) => value.padEnd(widths[idx], ' ')).join('  ');
   console.log(line(headers));
   console.log(line(widths.map((w) => '-'.repeat(w))));
-  for (const row of rows) {
-    console.log(line(row));
-  }
+  for (const row of rows) console.log(line(row));
 }
 
 function detectReleaseRoot(): string {
@@ -71,9 +66,7 @@ function detectReleaseRoot(): string {
 }
 
 function resolveReleaseDir(customRelease: string | undefined, config: string | undefined): string {
-  if (customRelease) {
-    return normalizePath(customRelease);
-  }
+  if (customRelease) return normalizePath(customRelease);
   const cfg = config || 'Release';
   const base = detectReleaseRoot();
   return normalizePath(path.join(base, 'build-win', cfg));
@@ -90,9 +83,7 @@ async function ensureJunction(libsPath: string, releaseDir: string): Promise<{ s
     try {
       const libsReal = fs.realpathSync(libsAbs);
       const releaseReal = fs.realpathSync(releaseAbs);
-      if (libsReal === releaseReal) {
-        return { state: 'OK', note: 'already linked' };
-      }
+      if (libsReal === releaseReal) return { state: 'OK', note: 'already linked' };
     } catch {
       // ignore comparison errors
     }
@@ -106,12 +97,8 @@ async function ensureJunction(libsPath: string, releaseDir: string): Promise<{ s
   const script = `$ErrorActionPreference='Stop'; New-Item -ItemType Junction -Path "${libsWin}" -Target "${releaseWin}" | Out-Null`;
   try {
     const { stdout, stderr } = await execa(powershell, ['-NoProfile', '-Command', script]);
-    if (stdout?.trim()) {
-      console.log(stdout.trim());
-    }
-    if (stderr?.trim()) {
-      console.log(stderr.trim());
-    }
+    if (stdout?.trim()) console.log(stdout.trim());
+    if (stderr?.trim()) console.log(stderr.trim());
     return { state: 'LINKED', note: releaseWin };
   } catch (error) {
     const message =
@@ -128,9 +115,7 @@ function findAgentLibraries(): string[] {
   const results: string[] = [];
   for (const candidate of candidates) {
     const normalized = normalizePath(candidate);
-    if (!fs.existsSync(normalized) || !fs.statSync(normalized).isDirectory()) {
-      continue;
-    }
+    if (!fs.existsSync(normalized) || !fs.statSync(normalized).isDirectory()) continue;
     for (const entry of fs.readdirSync(normalized)) {
       if (!entry.toLowerCase().startsWith('agent')) continue;
       const libs = path.join(normalized, entry, 'MQL5', 'Libraries');
@@ -157,17 +142,17 @@ function reportReleaseArtifacts(releaseDir: string) {
   printTable(rows, ['Artifact', 'File', 'State', 'Modified', 'Path']);
 }
 
-export function registerDllCommands(program: Command) {
-  const dll = program.command('dll').description('Builds e utilitários das DLLs');
+export function registerGpuCommands(program: Command) {
+  const gpu = program.command('gpu').description('Build/link das DLLs GPU');
 
-  dll
+  gpu
     .command('build')
-    .description('Fluxo de build das DLLs (placeholder)')
+    .description('Fluxo de build das DLLs GPU (placeholder)')
     .action(() => {
-      console.log('dll build: conecte com seu pipeline de build (em desenvolvimento).');
+      console.log('gpu build: conecte com seu pipeline de build (em desenvolvimento).');
     });
 
-  dll
+  gpu
     .command('link')
     .description('Cria junctions MQL5\\Libraries → build Release (bridge/core/tester em modo compartilhado)')
     .option('--release <path>', 'Diretório Release explícito (default: build-win/<config>)')
@@ -177,7 +162,7 @@ export function registerDllCommands(program: Command) {
     .option('--agents', 'Inclui agentes do Tester (agent-XXXX) no link', false)
     .action(async (opts) => {
       if (!platformIsWindows()) {
-        throw new Error('dll link requer Windows ou WSL (mklink /J).');
+        throw new Error('gpu link requer Windows ou WSL (mklink /J).');
       }
 
       const releaseDir = resolveReleaseDir(opts.release, opts.config);
@@ -212,16 +197,14 @@ export function registerDllCommands(program: Command) {
       for (const target of targets) {
         const normalizedLibs = normalizePath(target.libs);
         const result = await ensureJunction(normalizedLibs, releaseDir);
-        if (result.state === 'ERROR') {
-          errors += 1;
-        }
+        if (result.state === 'ERROR') errors += 1;
         rows.push([target.id, toWinPath(normalizedLibs), result.state, result.note]);
       }
       console.log('\nLink state:');
-      printTable(rows, ['Target', 'Libraries', 'State', 'Note']);
+      printTable(rows, ['Target', 'Libs', 'State', 'Note']);
       reportReleaseArtifacts(releaseDir);
       if (errors > 0) {
-        throw new Error('Alguns links falharam. Revise a tabela acima.');
+        throw new Error(`Alguns links falharam (${errors}). Veja a tabela acima.`);
       }
     });
 }

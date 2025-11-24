@@ -6,7 +6,7 @@ import chalk from 'chalk';
 import { registerInitCommand } from './commands/init.js';
 import { registerChartCommands, registerIndicatorCommands, registerExpertCommands } from './commands/chart.js';
 import { registerTesterCommands } from './commands/tester.js';
-import { registerDllCommands } from './commands/dll.js';
+import { registerGpuCommands } from './commands/gpu.js';
 import { registerUtilsCommands } from './commands/utils.js';
 import { registerGlobalsCommands } from './commands/globals.js';
 import { registerEventsCommands } from './commands/events.js';
@@ -46,7 +46,7 @@ async function main() {
   registerIndicatorCommands(program);
   registerExpertCommands(program);
   registerTesterCommands(program);
-  registerDllCommands(program);
+  registerGpuCommands(program);
   registerUtilsCommands(program);
   registerConfigCommands(program);
 
