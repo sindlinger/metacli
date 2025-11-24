@@ -98,6 +98,10 @@ function commonIniPath(dataDir: string) {
   return path.join(dataDir, 'config', 'common.ini');
 }
 
+function testerIniPath(dataDir: string, file?: string) {
+  return path.join(dataDir, file || 'tester.ini');
+}
+
 export function registerTerminalCommands(program: Command) {
   const term = program.command('terminal').description('Operações diretas no terminal (fora do listener)');
 
@@ -164,6 +168,40 @@ export function registerTerminalCommands(program: Command) {
       iniSet(iniPath, 'Experts', 'AllowDllImport', '1');
       iniSet(iniPath, 'Experts', 'Enabled', '1');
       console.log(chalk.green(`[terminal] DLLs habilitadas em ${iniPath}`));
+    });
+
+  term
+    .command('tester-show')
+    .description('Mostra tester.ini do projeto (ou arquivo indicado)')
+    .option('--file <path>', 'Arquivo ini (default tester.ini)')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      if (!info.data_dir) throw new Error('data_dir não configurado.');
+      const iniPath = testerIniPath(info.data_dir, opts.file);
+      if (!fs.existsSync(iniPath)) {
+        console.log(chalk.yellow(`tester ini não encontrado em ${iniPath}`));
+        return;
+      }
+      const content = await fs.readFile(iniPath, 'utf8');
+      console.log(content);
+    });
+
+  term
+    .command('tester-set')
+    .description('Altera chave em tester.ini (default em data_dir/tester.ini)')
+    .requiredOption('--key <key>')
+    .requiredOption('--value <value>')
+    .option('--section <name>', 'Seção (default Tester)', 'Tester')
+    .option('--file <path>', 'Arquivo ini (default tester.ini)')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      if (!info.data_dir) throw new Error('data_dir não configurado.');
+      const iniPath = testerIniPath(info.data_dir, opts.file);
+      await fs.ensureDir(path.dirname(iniPath));
+      iniSet(iniPath, opts.section, opts.key, opts.value);
+      console.log(chalk.green(`[terminal] ${opts.section}.${opts.key}=${opts.value} em ${iniPath}`));
     });
 
   term
