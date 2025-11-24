@@ -46,6 +46,7 @@ they use, and how all the pieces fit together in this **integrated** project.
 - Para ajustar credenciais, edite `config/common.ini` (Login/Password/Server) e rode `mtcli init` de novo.
 - Princípio adicional: não usar `--project`; o projeto ativo é único. `mtcli init` ativa/cria, e os comandos devem operar sobre o ativo sem exigir nome.
 - Builds GPU: artefatos ficam apenas no diretório de build (`GPU-dll_projects/build_<nome>/<cfg>` ou build-win/<cfg>); não copiar para MQL5/Libraries. O MT5 deve apontar para essas DLLs a partir daí, sem replicar arquivos.
+- TODO build GPU: ajustar o script para multiplicar a DLL em variantes (`engine-agent0.dll`, `engine-agent1.dll`, `engine-tester.dll`, `engine-libraries.dll`, etc.) dentro do Release, junto com runtimes CUDA. Hoje só há `GpuEngine.dll`; após criar as variantes no Release, apenas linkar a partir de MQL5/Libraries (sem cópias).
 
 ### Princípio "1-2-3" (CLI de 1 a 3 palavras, sem flags obrigatórias)
 - Ideia: qualquer comando deve rodar só com o verbo base (1–3 palavras), sem precisar de flags. Defaults do projeto cobrem tudo; se algo faltar, o CLI pergunta interativamente.
