@@ -31,6 +31,8 @@ string g_lastEASymbol = "";
 string g_lastEATf = "";
 string g_lastEATpl = "";
 
+int BuildParams(const string pstr, MqlParam &outParams[]);
+
 // Utilidades --------------------------------------------------------------
 string PayloadGet(const string payload, const string key)
 {
