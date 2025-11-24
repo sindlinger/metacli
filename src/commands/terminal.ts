@@ -60,38 +60,132 @@ function buildArgs(opts: any) {
 }
 
 function renderConfigTemplate(opts: any) {
-  return [
-    '[Common]',
-    opts.login ? `Login=${opts.login}` : 'Login=',
-    opts.password ? `Password=${opts.password}` : 'Password=',
-    opts.server ? `Server=${opts.server}` : 'Server=',
-    opts.certPassword ? `CertPassword=${opts.certPassword}` : 'CertPassword=',
-    opts.profile ? `ProfileLast=${opts.profile}` : 'ProfileLast=',
-    opts.profile ? `Profile=${opts.profile}` : 'Profile=',
-    opts.expert ? `Expert=${opts.expert}` : 'Expert=',
-    opts.symbol ? `Symbol=${opts.symbol}` : 'Symbol=',
-    opts.period ? `Period=${opts.period}` : 'Period=',
-    opts.template ? `Template=${opts.template}` : 'Template=',
-    '',
-  ].join('\n');
+  const lines: string[] = [];
+  // Common/login/profile
+  lines.push('[Common]');
+  lines.push(opts.login ? `Login=${opts.login}` : 'Login=');
+  lines.push(opts.password ? `Password=${opts.password}` : 'Password=');
+  lines.push(opts.server ? `Server=${opts.server}` : 'Server=');
+  lines.push(opts.certPassword ? `CertPassword=${opts.certPassword}` : 'CertPassword=');
+  lines.push(opts.profile ? `ProfileLast=${opts.profile}` : 'ProfileLast=');
+  lines.push(opts.profile ? `Profile=${opts.profile}` : 'Profile=');
+  lines.push('');
+
+  // StartUp section (auto-open chart / attach EA/script)
+  const hasStartUp = Boolean(
+    opts.startExpert ||
+    opts.startExpertParams ||
+    opts.startSymbol ||
+    opts.startPeriod ||
+    opts.startTemplate ||
+    opts.startScript ||
+    opts.startScriptParams ||
+    opts.startShutdown === true
+  );
+  if (hasStartUp) {
+    lines.push('[StartUp]');
+    lines.push(opts.startExpert ? `Expert=${opts.startExpert}` : 'Expert=');
+    lines.push(opts.startExpertParams ? `ExpertParameters=${opts.startExpertParams}` : 'ExpertParameters=');
+    lines.push(opts.startSymbol ? `Symbol=${opts.startSymbol}` : 'Symbol=');
+    lines.push(opts.startPeriod ? `Period=${opts.startPeriod}` : 'Period=');
+    lines.push(opts.startTemplate ? `Template=${opts.startTemplate}` : 'Template=');
+    lines.push(opts.startScript ? `Script=${opts.startScript}` : 'Script=');
+    lines.push(opts.startScriptParams ? `ScriptParameters=${opts.startScriptParams}` : 'ScriptParameters=');
+    lines.push(typeof opts.startShutdown !== 'undefined' ? `ShutdownTerminal=${opts.startShutdown ? 1 : 0}` : 'ShutdownTerminal=');
+    lines.push('');
+  }
+
+  // Tester section (optional)
+  const hasTester = Boolean(
+    opts.testerExpert ||
+    opts.testerParams ||
+    opts.testerSymbol ||
+    opts.testerPeriod ||
+    opts.testerLogin ||
+    typeof opts.testerModel !== 'undefined' ||
+    typeof opts.testerExecution !== 'undefined' ||
+    typeof opts.testerOptimization !== 'undefined' ||
+    typeof opts.testerCriterion !== 'undefined' ||
+    opts.testerFrom ||
+    opts.testerTo ||
+    typeof opts.testerForwardMode !== 'undefined' ||
+    opts.testerForwardDate ||
+    opts.testerReport ||
+    opts.testerReplaceReport === true ||
+    opts.testerShutdown === true ||
+    opts.testerDeposit ||
+    opts.testerCurrency ||
+    opts.testerLeverage ||
+    opts.testerUseLocal === true ||
+    opts.testerUseRemote === true ||
+    opts.testerUseCloud === true ||
+    opts.testerVisual === true ||
+    opts.testerPort
+  );
+  if (hasTester) {
+    lines.push('[Tester]');
+    lines.push(opts.testerExpert ? `Expert=${opts.testerExpert}` : 'Expert=');
+    lines.push(opts.testerParams ? `ExpertParameters=${opts.testerParams}` : 'ExpertParameters=');
+    lines.push(opts.testerSymbol ? `Symbol=${opts.testerSymbol}` : 'Symbol=');
+    lines.push(opts.testerPeriod ? `Period=${opts.testerPeriod}` : 'Period=');
+    lines.push(typeof opts.testerLogin !== 'undefined' ? `Login=${opts.testerLogin}` : 'Login=');
+    lines.push(typeof opts.testerModel !== 'undefined' ? `Model=${opts.testerModel}` : 'Model=');
+    lines.push(typeof opts.testerExecution !== 'undefined' ? `ExecutionMode=${opts.testerExecution}` : 'ExecutionMode=');
+    lines.push(typeof opts.testerOptimization !== 'undefined' ? `Optimization=${opts.testerOptimization}` : 'Optimization=');
+    lines.push(typeof opts.testerCriterion !== 'undefined' ? `OptimizationCriterion=${opts.testerCriterion}` : 'OptimizationCriterion=');
+    lines.push(opts.testerFrom ? `FromDate=${opts.testerFrom}` : 'FromDate=');
+    lines.push(opts.testerTo ? `ToDate=${opts.testerTo}` : 'ToDate=');
+    lines.push(typeof opts.testerForwardMode !== 'undefined' ? `ForwardMode=${opts.testerForwardMode}` : 'ForwardMode=');
+    lines.push(opts.testerForwardDate ? `ForwardDate=${opts.testerForwardDate}` : 'ForwardDate=');
+    lines.push(opts.testerReport ? `Report=${opts.testerReport}` : 'Report=');
+    lines.push(typeof opts.testerReplaceReport !== 'undefined' ? `ReplaceReport=${opts.testerReplaceReport ? 1 : 0}` : 'ReplaceReport=');
+    lines.push(typeof opts.testerShutdown !== 'undefined' ? `ShutdownTerminal=${opts.testerShutdown ? 1 : 0}` : 'ShutdownTerminal=');
+    lines.push(opts.testerDeposit ? `Deposit=${opts.testerDeposit}` : 'Deposit=');
+    lines.push(opts.testerCurrency ? `Currency=${opts.testerCurrency}` : 'Currency=');
+    lines.push(opts.testerLeverage ? `Leverage=${opts.testerLeverage}` : 'Leverage=');
+    lines.push(typeof opts.testerUseLocal !== 'undefined' ? `UseLocal=${opts.testerUseLocal ? 1 : 0}` : 'UseLocal=');
+    lines.push(typeof opts.testerUseRemote !== 'undefined' ? `UseRemote=${opts.testerUseRemote ? 1 : 0}` : 'UseRemote=');
+    lines.push(typeof opts.testerUseCloud !== 'undefined' ? `UseCloud=${opts.testerUseCloud ? 1 : 0}` : 'UseCloud=');
+    lines.push(typeof opts.testerVisual !== 'undefined' ? `Visual=${opts.testerVisual ? 1 : 0}` : 'Visual=');
+    lines.push(opts.testerPort ? `Port=${opts.testerPort}` : 'Port=');
+    lines.push('');
+  }
+
+  return lines.join('\n');
 }
 
 function renderTesterConfig(opts: any) {
-  return [
-    '[Tester]',
-    opts.expert ? `Expert=${opts.expert}` : 'Expert=',
-    opts.symbol ? `Symbol=${opts.symbol}` : 'Symbol=',
-    opts.period ? `Period=${opts.period}` : 'Period=',
-    opts.model ? `Model=${opts.model}` : 'Model=0',
-    opts.spread ? `Spread=${opts.spread}` : 'Spread=0',
-    opts.deposit ? `Deposit=${opts.deposit}` : 'Deposit=10000',
-    opts.currency ? `Currency=${opts.currency}` : 'Currency=USD',
-    opts.report ? `Report=${opts.report}` : 'Report=mtcli_report',
-    opts.visual ? 'Visual=1' : 'Visual=0',
-    '',
-    '[TesterInputs]',
-    '',
-  ].join('\n');
+  const lines: string[] = [];
+  lines.push('[Tester]');
+  lines.push(opts.expert ? `Expert=${opts.expert}` : 'Expert=');
+  lines.push(opts.params ? `ExpertParameters=${opts.params}` : 'ExpertParameters=');
+  lines.push(opts.symbol ? `Symbol=${opts.symbol}` : 'Symbol=');
+  lines.push(opts.period ? `Period=${opts.period}` : 'Period=');
+  lines.push(typeof opts.login !== 'undefined' ? `Login=${opts.login}` : 'Login=');
+  lines.push(typeof opts.model !== 'undefined' ? `Model=${opts.model}` : 'Model=0');
+  lines.push(typeof opts.execution !== 'undefined' ? `ExecutionMode=${opts.execution}` : 'ExecutionMode=');
+  lines.push(typeof opts.optimization !== 'undefined' ? `Optimization=${opts.optimization}` : 'Optimization=0');
+  lines.push(typeof opts.criterion !== 'undefined' ? `OptimizationCriterion=${opts.criterion}` : 'OptimizationCriterion=');
+  lines.push(opts.from ? `FromDate=${opts.from}` : 'FromDate=');
+  lines.push(opts.to ? `ToDate=${opts.to}` : 'ToDate=');
+  lines.push(typeof opts.forwardMode !== 'undefined' ? `ForwardMode=${opts.forwardMode}` : 'ForwardMode=0');
+  lines.push(opts.forwardDate ? `ForwardDate=${opts.forwardDate}` : 'ForwardDate=');
+  lines.push(opts.report ? `Report=${opts.report}` : 'Report=mtcli_report');
+  lines.push(typeof opts.replaceReport !== 'undefined' ? `ReplaceReport=${opts.replaceReport ? 1 : 0}` : 'ReplaceReport=0');
+  lines.push(typeof opts.shutdown !== 'undefined' ? `ShutdownTerminal=${opts.shutdown ? 1 : 0}` : 'ShutdownTerminal=0');
+  lines.push(opts.deposit ? `Deposit=${opts.deposit}` : 'Deposit=10000');
+  lines.push(opts.currency ? `Currency=${opts.currency}` : 'Currency=USD');
+  lines.push(opts.leverage ? `Leverage=${opts.leverage}` : 'Leverage=1:100');
+  lines.push(typeof opts.useLocal !== 'undefined' ? `UseLocal=${opts.useLocal ? 1 : 0}` : 'UseLocal=');
+  lines.push(typeof opts.useRemote !== 'undefined' ? `UseRemote=${opts.useRemote ? 1 : 0}` : 'UseRemote=');
+  lines.push(typeof opts.useCloud !== 'undefined' ? `UseCloud=${opts.useCloud ? 1 : 0}` : 'UseCloud=');
+  lines.push(typeof opts.visual !== 'undefined' ? `Visual=${opts.visual ? 1 : 0}` : 'Visual=0');
+  lines.push(opts.spread ? `Spread=${opts.spread}` : 'Spread=0');
+  lines.push(opts.port ? `Port=${opts.port}` : 'Port=');
+  lines.push('');
+  lines.push('[TesterInputs]');
+  lines.push('');
+  return lines.join('\n');
 }
 
 function commonIniPath(dataDir: string) {
@@ -179,10 +273,40 @@ export function registerTerminalCommands(program: Command) {
     .option('--server <srv>')
     .option('--cert-password <pass>')
     .option('--profile <name>')
-    .option('--expert <name>')
-    .option('--symbol <symbol>')
-    .option('--period <period>')
-    .option('--template <tpl>')
+    // StartUp
+    .option('--start-expert <path>', 'EA para abrir na inicialização (Examples\\MACD\\MACD Sample)')
+    .option('--start-expert-params <file>', 'Arquivo .set em MQL5\\presets')
+    .option('--start-symbol <symbol>', 'Símbolo do gráfico criado na inicialização')
+    .option('--start-period <period>', 'Período (M1, H1, D1)')
+    .option('--start-template <tpl>', 'Template a aplicar ao gráfico (Profiles\\Templates)')
+    .option('--start-script <path>', 'Script para abrir na inicialização')
+    .option('--start-script-params <file>', 'Arquivo .set do script (MQL5\\presets)')
+    .option('--start-shutdown', 'Encerrar terminal ao fim do script (ShutdownTerminal=1)', false)
+    // Tester
+    .option('--tester-expert <path>', 'EA para testar')
+    .option('--tester-params <file>', 'Parâmetros do EA (Profiles\\Tester\\*.set)')
+    .option('--tester-symbol <symbol>')
+    .option('--tester-period <period>')
+    .option('--tester-login <login>')
+    .option('--tester-model <n>', 'Modelagem (0=ticks,1=OHLC,2=open,3=math,4=real)')
+    .option('--tester-execution <ms>', 'ExecutionMode (0 normal, -1 aleatório, >0 delay ms)')
+    .option('--tester-optimization <n>', '0=off,1=slow,2=fast,3=all symbols')
+    .option('--tester-criterion <n>', 'OptimizationCriterion (0..7)')
+    .option('--tester-from <YYYY.MM.DD>')
+    .option('--tester-to <YYYY.MM.DD>')
+    .option('--tester-forward-mode <n>', '0 off,1 1/2,2 1/3,3 1/4,4 custom')
+    .option('--tester-forward-date <YYYY.MM.DD>')
+    .option('--tester-report <name>', 'Arquivo/slug do relatório')
+    .option('--tester-replace-report', 'Sobrescreve report existente (ReplaceReport=1)', false)
+    .option('--tester-shutdown', 'Encerra terminal ao fim do teste', false)
+    .option('--tester-deposit <value>', 'Depósito inicial')
+    .option('--tester-currency <ccy>', 'Moeda do depósito')
+    .option('--tester-leverage <ratio>', 'Alavancagem ex.: 1:100')
+    .option('--tester-use-local', 'Usar agentes locais (UseLocal=1)', false)
+    .option('--tester-use-remote', 'Usar agentes remotos (UseRemote=1)', false)
+    .option('--tester-use-cloud', 'Usar MQL5 Cloud (UseCloud=1)', false)
+    .option('--tester-visual', 'Modo visual', false)
+    .option('--tester-port <n>', 'Porta do agente local')
     .action(async (opts) => {
       const content = renderConfigTemplate(opts);
       const outPath = path.resolve(opts.out);
@@ -197,14 +321,56 @@ export function registerTerminalCommands(program: Command) {
     .requiredOption('--expert <name>', 'Experts\\EA.ex5')
     .requiredOption('--symbol <symbol>', 'Símbolo')
     .requiredOption('--period <period>', 'Período (H1, M15, etc.)')
+    .option('--params <file>', 'ExpertParameters (.set em Profiles\\Tester)')
+    .option('--login <login>', 'Login simulado')
     .option('--model <n>', 'Modelagem (0=tick)', '0')
-    .option('--spread <points>', 'Spread', '0')
+    .option('--execution <ms>', 'ExecutionMode (0 normal, -1 aleatório, >0 delay ms)')
+    .option('--optimization <n>', '0=off,1=slow,2=fast,3=all symbols', '0')
+    .option('--criterion <n>', 'OptimizationCriterion (0..7)')
+    .option('--from <YYYY.MM.DD>', 'Data inicial')
+    .option('--to <YYYY.MM.DD>', 'Data final')
+    .option('--forward-mode <n>', '0 off,1 1/2,2 1/3,3 1/4,4 custom', '0')
+    .option('--forward-date <YYYY.MM.DD>', 'Data de início do forward')
     .option('--deposit <val>', 'Depósito', '10000')
     .option('--currency <ccy>', 'Moeda', 'USD')
-    .option('--visual', 'Modo visual', false)
+    .option('--leverage <ratio>', 'Alavancagem ex.: 1:100', '1:100')
+    .option('--use-local', 'UseLocal=1', false)
+    .option('--use-remote', 'UseRemote=1', false)
+    .option('--use-cloud', 'UseCloud=1', false)
+    .option('--visual', 'Visual=1', false)
+    .option('--spread <points>', 'Spread', '0')
+    .option('--port <n>', 'Porta do agente local')
     .option('--report <name>', 'Nome base do report', 'mtcli_report')
+    .option('--replace-report', 'Sobrescrever report existente', false)
+    .option('--shutdown', 'Fechar terminal ao terminar o teste', false)
     .action(async (opts) => {
-      const content = renderTesterConfig(opts);
+      const content = renderTesterConfig({
+        expert: opts.expert,
+        params: opts.params,
+        symbol: opts.symbol,
+        period: opts.period,
+        login: opts.login,
+        model: opts.model,
+        execution: opts.execution,
+        optimization: opts.optimization,
+        criterion: opts.criterion,
+        from: opts.from,
+        to: opts.to,
+        forwardMode: opts.forwardMode,
+        forwardDate: opts.forwardDate,
+        deposit: opts.deposit,
+        currency: opts.currency,
+        leverage: opts.leverage,
+        useLocal: opts.useLocal,
+        useRemote: opts.useRemote,
+        useCloud: opts.useCloud,
+        visual: opts.visual,
+        spread: opts.spread,
+        port: opts.port,
+        report: opts.report,
+        replaceReport: opts.replaceReport,
+        shutdown: opts.shutdown,
+      });
       const outPath = path.resolve(opts.out);
       await fs.writeFile(outPath, content, 'utf8');
       console.log(chalk.green(`[terminal] tester ini gerado em ${outPath}`));
@@ -217,10 +383,40 @@ export function registerTerminalCommands(program: Command) {
     .requiredOption('--password <pass>')
     .requiredOption('--server <srv>')
     .option('--profile <name>')
-    .option('--expert <name>')
-    .option('--symbol <symbol>')
-    .option('--period <period>')
-    .option('--template <tpl>')
+    // StartUp
+    .option('--start-expert <path>')
+    .option('--start-expert-params <file>')
+    .option('--start-symbol <symbol>')
+    .option('--start-period <period>')
+    .option('--start-template <tpl>')
+    .option('--start-script <path>')
+    .option('--start-script-params <file>')
+    .option('--start-shutdown', 'ShutdownTerminal=1', false)
+    // Tester
+    .option('--tester-expert <path>')
+    .option('--tester-params <file>')
+    .option('--tester-symbol <symbol>')
+    .option('--tester-period <period>')
+    .option('--tester-login <login>')
+    .option('--tester-model <n>')
+    .option('--tester-execution <ms>')
+    .option('--tester-optimization <n>')
+    .option('--tester-criterion <n>')
+    .option('--tester-from <YYYY.MM.DD>')
+    .option('--tester-to <YYYY.MM.DD>')
+    .option('--tester-forward-mode <n>')
+    .option('--tester-forward-date <YYYY.MM.DD>')
+    .option('--tester-report <name>')
+    .option('--tester-replace-report', 'ReplaceReport=1', false)
+    .option('--tester-shutdown', 'ShutdownTerminal=1', false)
+    .option('--tester-deposit <value>')
+    .option('--tester-currency <ccy>')
+    .option('--tester-leverage <ratio>')
+    .option('--tester-use-local', 'UseLocal=1', false)
+    .option('--tester-use-remote', 'UseRemote=1', false)
+    .option('--tester-use-cloud', 'UseCloud=1', false)
+    .option('--tester-visual', 'Visual=1', false)
+    .option('--tester-port <n>')
     .option('--portable', 'Usar /portable', false)
     .option('--datapath <path>', 'Define /datapath:<path>')
     .option('--project <id>')
