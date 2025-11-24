@@ -24,6 +24,24 @@ function resolveSubwindow(info: any, fallback?: number) {
   return typeof value === 'number' && !Number.isNaN(value) ? value : 1;
 }
 
+function parseParams(input?: string): Array<[string, string]> {
+  if (!input) return [];
+  const pairs = input
+    .split(',')
+    .map((pair) => pair.trim())
+    .filter(Boolean)
+    .map((pair) => {
+      const [k, ...rest] = pair.split('=');
+      return [k.trim(), rest.join('=').trim()];
+    })
+    .filter(([k]) => k.length > 0);
+  return pairs as Array<[string, string]>;
+}
+
+function serializeParams(params: Array<[string, string]>): string {
+  return params.map(([k, v]) => `${k}=${v}`).join(';');
+}
+
 function normalizeMqlPath(kind: 'indicator' | 'expert' | 'script', input: string, dataDir: string): string {
   const trimmed = input.replace(/^\\+|^\/+/g, '');
   const expectedRoot = kind === 'indicator' ? 'indicators' : kind === 'expert' ? 'experts' : 'scripts';
@@ -194,6 +212,9 @@ export function registerQuickCommands(program: Command) {
     .option('--name', 'Mostra ChartIndicatorName (indicator)')
     .option('--handle', 'Mostra handle ChartIndicatorGet (indicator)')
     .option('--index <n>', 'Índice para --name (default 0)', (val) => parseInt(val, 10))
+    .option('--params <k=v,...>', 'Parâmetros custom (indicator/expert) separados por vírgula')
+    .option('--chart', 'Abre o chart antes de anexar')
+    .option('--stop-all', 'Remove todos indicadores/experts (DETACH_ALL) e sai')
     .option('--project <id>', 'Projeto alvo')
     .action(async (opts) => {
       const targets = ['indicator', 'expert'].filter((k) => (opts as any)[k]);
@@ -205,6 +226,17 @@ export function registerQuickCommands(program: Command) {
       const period = resolvePeriod(info, opts.period);
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
+      }
+
+      if (opts.stopAll) {
+        await sendListenerCommand(info, 'DETACH_ALL', [], { timeoutMs: 8000 });
+        console.log(chalk.green('[run] Todos indicadores/experts removidos (DETACH_ALL).'));
+        return;
+      }
+
+      if (opts.chart) {
+        await sendListenerCommand(info, 'OPEN_CHART', [symbol, period], { timeoutMs: 6000 });
+        console.log(chalk.gray(`[run] chart aberto para ${symbol} ${period}`));
       }
 
       if (opts.indicator) {
@@ -235,7 +267,10 @@ export function registerQuickCommands(program: Command) {
           return;
         }
 
-        await attachIndicator(info, symbol, period, opts.indicator, sub);
+        const params = serializeParams(parseParams(opts.params));
+        await sendListenerCommand(info, 'ATTACH_IND_FULL', [symbol, period, opts.indicator, sub, params], {
+          timeoutMs: 8000,
+        });
         console.log(chalk.green(`[run] Indicador anexado: ${opts.indicator} em ${symbol} ${period} (subwindow ${sub})`));
         return;
       }
@@ -247,11 +282,14 @@ export function registerQuickCommands(program: Command) {
         return;
       }
 
+      const params = serializeParams(parseParams(opts.params));
       if (opts.visual) {
         await runExpertVisual(info, opts.expert, symbol, period, opts.config, opts.wait);
         console.log(chalk.green(`[run] Tester visual iniciado com expert ${opts.expert} em ${symbol} ${period}`));
       } else {
-        await attachExpert(info, symbol, period, opts.expert, opts.template);
+        await sendListenerCommand(info, 'ATTACH_EA_FULL', [symbol, period, opts.expert, opts.template || 'Default.tpl', params], {
+          timeoutMs: 10000,
+        });
         console.log(chalk.green(`[run] Expert anexado: ${opts.expert} em ${symbol} ${period}`));
       }
     });

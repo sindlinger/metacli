@@ -13,6 +13,9 @@ import { registerUtilsCommands } from './commands/utils.js';
 import { registerConfigCommands } from './commands/config.js';
 import { registerQuickCommands } from './commands/quick.js';
 import { registerGlobalsCommands } from './commands/globals.js';
+import { registerEventsCommands } from './commands/events.js';
+import { registerObjectsCommands } from './commands/objects.js';
+import { registerInputsCommands } from './commands/inputs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -29,6 +32,9 @@ async function main() {
   registerInitCommand(program);
   registerQuickCommands(program);
   registerGlobalsCommands(program);
+  registerEventsCommands(program);
+  registerObjectsCommands(program);
+  registerInputsCommands(program);
   registerProjectCommands(program);
   registerChartCommands(program);
   registerIndicatorCommands(program);
