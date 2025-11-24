@@ -268,6 +268,37 @@ function renderTesterConfig(opts: any) {
   return lines.join('\n');
 }
 
+type Scope = 'data' | 'config' | 'logs' | 'mql5' | 'tester' | 'root';
+
+function resolveScopeBase(info: any, scope: Scope): string {
+  if (!info.data_dir && scope !== 'root') {
+    throw new Error('data_dir não configurado para o projeto.');
+  }
+  switch (scope) {
+    case 'data':
+      return info.data_dir!;
+    case 'config':
+      return path.join(info.data_dir!, 'config');
+    case 'logs':
+      return path.join(info.data_dir!, 'Logs');
+    case 'mql5':
+      return path.join(info.data_dir!, 'MQL5');
+    case 'tester':
+      return path.join(info.data_dir!, 'Tester');
+    case 'root':
+    default:
+      if (!info.terminal) throw new Error('terminal64.exe não configurado.');
+      return path.dirname(info.terminal);
+  }
+}
+
+async function statExists(target: string, type: 'file' | 'dir' | 'any' = 'any') {
+  if (!(await fs.pathExists(target))) return false;
+  if (type === 'any') return true;
+  const st = await fs.stat(target);
+  return type === 'file' ? st.isFile() : st.isDirectory();
+}
+
 function commonIniPath(dataDir: string) {
   return path.join(dataDir, 'config', 'common.ini');
 }
@@ -312,6 +343,85 @@ export function registerTerminalCommands(program: Command) {
       await fs.ensureDir(path.dirname(iniPath));
       iniSet(iniPath, opts.section, opts.key, opts.value);
       console.log(chalk.green(`[terminal] ${opts.section}.${opts.key}=${opts.value} em ${iniPath}`));
+    });
+
+  term
+    .command('paths')
+    .description('Mostra caminhos principais do terminal do projeto')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      const rows: Array<{ label: string; value: string; exists: boolean }> = [];
+      const push = async (label: string, value?: string | null) => {
+        if (!value) return;
+        const exists = await fs.pathExists(value);
+        rows.push({ label, value, exists });
+      };
+      await push('terminal', info.terminal);
+      await push('metaeditor', info.metaeditor);
+      await push('root', info.terminal ? path.dirname(info.terminal) : null);
+      await push('data_dir', info.data_dir);
+      await push('config', info.data_dir ? path.join(info.data_dir, 'config') : null);
+      await push('logs', info.data_dir ? path.join(info.data_dir, 'Logs') : null);
+      await push('mql5', info.data_dir ? path.join(info.data_dir, 'MQL5') : null);
+      await push('experts', info.data_dir ? path.join(info.data_dir, 'MQL5', 'Experts') : null);
+      await push('indicators', info.data_dir ? path.join(info.data_dir, 'MQL5', 'Indicators') : null);
+      await push('scripts', info.data_dir ? path.join(info.data_dir, 'MQL5', 'Scripts') : null);
+      await push('libraries', info.data_dir ? path.join(info.data_dir, 'MQL5', 'Libraries') : null);
+      await push('presets', info.data_dir ? path.join(info.data_dir, 'MQL5', 'Profiles', 'Tester') : null);
+      await push('profiles', info.data_dir ? path.join(info.data_dir, 'Profiles') : null);
+      await push('templates', info.data_dir ? path.join(info.data_dir, 'Profiles', 'Templates') : null);
+      await push('tester', info.data_dir ? path.join(info.data_dir, 'Tester') : null);
+      await push('tester logs', info.data_dir ? path.join(info.data_dir, 'Tester', 'logs') : null);
+      await push('tester cache', info.data_dir ? path.join(info.data_dir, 'Tester', 'Cache') : null);
+
+      const longest = rows.reduce((m, r) => Math.max(m, r.label.length), 0);
+      rows.forEach((r) => {
+        const mark = r.exists ? chalk.green('✓') : chalk.red('✗');
+        console.log(`${mark} ${r.label.padEnd(longest)}  ${r.value}`);
+      });
+    });
+
+  term
+    .command('exists')
+    .description('Verifica se um arquivo/pasta existe dentro do terminal do projeto')
+    .requiredOption('--path <relOrAbs>', 'Caminho (relativo ao escopo escolhido)')
+    .option('--scope <data|config|logs|mql5|tester|root>', 'Escopo base', 'data')
+    .option('--type <file|dir|any>', 'Tipo esperado', 'any')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      const base = resolveScopeBase(info, opts.scope as Scope);
+      const target = path.isAbsolute(opts.path) ? opts.path : path.join(base, opts.path);
+      const ok = await statExists(target, opts.type as any);
+      console.log(`${ok ? chalk.green('EXISTS') : chalk.red('MISSING')} ${target}`);
+    });
+
+  term
+    .command('ls')
+    .description('Lista conteúdo de uma pasta do terminal (data/config/logs/mql5/tester/root)')
+    .option('--path <relOrAbs>', 'Pasta (relativa ao escopo)', '.')
+    .option('--scope <data|config|logs|mql5|tester|root>', 'Escopo base', 'data')
+    .option('--max <n>', 'Máximo de entradas', '200')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      const base = resolveScopeBase(info, opts.scope as Scope);
+      const target = path.isAbsolute(opts.path) ? opts.path : path.join(base, opts.path);
+      if (!(await fs.pathExists(target))) {
+        console.log(chalk.red(`Caminho não existe: ${target}`));
+        return;
+      }
+      const entries = await fs.readdir(target, { withFileTypes: true });
+      const max = Number(opts.max) || 200;
+      entries.slice(0, max).forEach((e) => {
+        const name = e.name;
+        const mark = e.isDirectory() ? chalk.blue('[dir]') : e.isFile() ? '     ' : '[oth]';
+        console.log(`${mark} ${name}`);
+      });
+      if (entries.length > max) {
+        console.log(chalk.gray(`... (${entries.length - max} ocultos, use --max para ver mais)`));
+      }
     });
 
   term
