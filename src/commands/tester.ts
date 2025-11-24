@@ -66,7 +66,7 @@ export function registerTesterCommands(program: Command) {
     .command('run')
     .description('Executa o terminal no modo Strategy Tester usando um arquivo .ini existente')
     .option('--config <path>', `Arquivo .ini (default: ${DEFAULT_TESTER_INI})`)
-    .option('--project <id>', 'Projeto configurado')
+    .option('--project <id>', 'Projeto configurado (LEGADO; evite, usa ativo)')
     .option('--wait', 'Aguardar o terminal encerrar em vez de destacar', false)
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
@@ -101,7 +101,7 @@ export function registerTesterCommands(program: Command) {
     .option('--deposit <value>', 'Depósito', '10000')
     .option('--currency <ccy>', 'Moeda', 'USD')
     .option('--report <name>', 'Nome base do relatório', 'mtcli_run')
-    .option('--project <id>')
+    .option('--project <id>', '(LEGADO; evite, usa ativo)')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       if (!info.terminal) throw new Error('terminal64.exe não configurado.');
@@ -167,7 +167,7 @@ export function registerTesterCommands(program: Command) {
     .command('ini-show')
     .description('Mostra tester.ini do projeto (ou arquivo indicado)')
     .option('--file <path>', 'Arquivo ini (default tester.ini)')
-    .option('--project <id>', 'Projeto alvo')
+    .option('--project <id>', 'Projeto alvo (LEGADO; evite, usa ativo)')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       if (!info.data_dir) throw new Error('data_dir não configurado.');
@@ -187,7 +187,7 @@ export function registerTesterCommands(program: Command) {
     .requiredOption('--value <value>')
     .option('--section <name>', 'Seção (default Tester)', 'Tester')
     .option('--file <path>', 'Arquivo ini (default tester.ini)')
-    .option('--project <id>', 'Projeto alvo')
+    .option('--project <id>', 'Projeto alvo (LEGADO; evite, usa ativo)')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       if (!info.data_dir) throw new Error('data_dir não configurado.');

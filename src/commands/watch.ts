@@ -29,7 +29,7 @@ export function registerWatchCommands(program: Command) {
     .option('-p, --period <period>', 'Período (default do projeto)')
     .option('--subwindow <index>', 'Subjanela do indicador', (val) => parseInt(val, 10))
     .option('--template <tpl>', 'Template para EA (default Default.tpl)')
-    .option('--project <id>')
+    .option('--project <id>', '(LEGADO; evite, usa ativo)')
     .option('--debounce <ms>', 'Atraso entre detecção e recompilar', (v) => parseInt(v, 10), 400)
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);

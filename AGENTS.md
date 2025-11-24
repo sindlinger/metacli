@@ -44,6 +44,7 @@ they use, and how all the pieces fit together in this **integrated** project.
 - Evitar múltiplos projetos; tudo usa o projeto ativo acima.
 - Não sobrescrever `config/common.ini` manualmente; ele já contém credenciais e toggles corretos.
 - Para ajustar credenciais, edite `config/common.ini` (Login/Password/Server) e rode `mtcli init` de novo.
+- Princípio adicional: não usar `--project`; o projeto ativo é único. `mtcli init` ativa/cria, e os comandos devem operar sobre o ativo sem exigir nome.
 
 ### Princípio "1-2-3" (CLI de 1 a 3 palavras, sem flags obrigatórias)
 - Ideia: qualquer comando deve rodar só com o verbo base (1–3 palavras), sem precisar de flags. Defaults do projeto cobrem tudo; se algo faltar, o CLI pergunta interativamente.

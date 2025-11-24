@@ -44,7 +44,7 @@ export function registerEventsCommands(program: Command) {
     .option('-f, --filter <text>', 'Filtro (contém)')
     .option('--follow', 'Segue em tempo real', false)
     .option('--errors', 'Filtra erros (error/critical/fail)', false)
-    .option('--project <id>')
+    .option('--project <id>', '(LEGADO; evite, usa ativo)')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       const n = Number.isFinite(opts.lines) ? opts.lines : 200;
@@ -65,7 +65,7 @@ export function registerEventsCommands(program: Command) {
   events
     .command('send')
     .requiredOption('--text <msg>', 'Mensagem de depuração')
-    .option('--project <id>')
+    .option('--project <id>', '(LEGADO; evite, usa ativo)')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       await sendListenerCommand(info, 'DEBUG_MSG', [opts.text], { timeoutMs: 4000 });

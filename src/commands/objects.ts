@@ -17,7 +17,7 @@ export function registerObjectsSubcommands(parent: Command) {
     .command('list')
     .option('-s, --symbol <symbol>')
     .option('-p, --period <period>')
-    .option('--project <id>')
+    .option('--project <id>', '(LEGADO; evite, usa ativo)')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       await sendListenerCommand(info, 'OBJ_LIST', [opts.symbol || '', opts.period || ''], { timeoutMs: 8000 });
@@ -28,7 +28,7 @@ export function registerObjectsSubcommands(parent: Command) {
     .description('Remove um objeto ou todos de um prefixo')
     .option('--name <name>', 'Nome do objeto')
     .option('--prefix <prefix>', 'Remove todos que iniciem com prefixo')
-    .option('--project <id>')
+    .option('--project <id>', '(LEGADO; evite, usa ativo)')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       if (!opts.name && !opts.prefix) {
@@ -45,7 +45,7 @@ export function registerObjectsSubcommands(parent: Command) {
     .requiredOption('--name <name>')
     .requiredOption('--price <price>', 'Preço (y)')
     .requiredOption('--time <time>', 'Tempo (x) YYYY.MM.DD HH:MM')
-    .option('--project <id>')
+    .option('--project <id>', '(LEGADO; evite, usa ativo)')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       await sendListenerCommand(info, 'OBJ_MOVE', [opts.name, opts.price, opts.time], { timeoutMs: 6000 });

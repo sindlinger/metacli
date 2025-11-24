@@ -1,28 +1,12 @@
 {
-  "last_project": "mql5-terminal",
+  "last_project": "project-20251124-125338-klj1",
   "projects": {
-    "main-terminal": {
-      "project": "main-terminal",
-      "libs": "C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265/MQL5/Libraries",
-      "metaeditor": "C:/Dukascopy MetaTrader 5/MetaEditor64.exe",
-      "terminal": "C:/Dukascopy MetaTrader 5/terminal64.exe",
-      "data_dir": "C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265",
-      "updated_at": "2025-11-20T08:57:18.653Z",
-      "created_at": "2025-11-13T17:50:24",
-      "defaults": {
-        "symbol": "EURUSD",
-        "period": "H1",
-        "subwindow": 1,
-        "profile": "Default",
-        "portable": false
-      }
-    },
-    "mql5-terminal": {
-      "project": "mql5-terminal",
-      "libs": "C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/80DC949B6D3DF1DE0B919D359660D2E7/MQL5/Libraries",
-      "terminal": "C:/mql5/terminal64.exe",
-      "metaeditor": "C:/mql5/MetaEditor64.exe",
-      "data_dir": "C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/80DC949B6D3DF1DE0B919D359660D2E7",
+    "project-20251124-125338-klj1": {
+      "project": "project-20251124-125338-klj1",
+      "libs": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1/MQL5/Libraries",
+      "terminal": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1/terminal64.exe",
+      "metaeditor": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1/MetaEditor64.exe",
+      "data_dir": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1",
       "defaults": {
         "symbol": "EURUSD",
         "period": "H1",
@@ -30,8 +14,8 @@
         "profile": "Default",
         "portable": false
       },
-      "updated_at": "2025-11-22T13:28:03.498Z",
-      "created_at": "2025-11-22T00:57:11.918Z"
+      "updated_at": "2025-11-24T15:53:53.962Z",
+      "created_at": "2025-11-24T15:53:53.962Z"
     }
   }
 }

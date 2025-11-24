@@ -242,7 +242,7 @@ export function registerGpuCommands(program: Command) {
     .option('--release <path>', 'Diretório Release explícito (default: build-win/<config>)')
     .option('--config <name>', 'Subpasta do build-win (default: Release)', 'Release')
     .option('--libs <path>', 'Caminho para MQL5\\Libraries (pode repetir)', collectPaths, [] as string[])
-    .option('--project <id>', 'Projeto salvo em mtcli_projects.json')
+    .option('--project <id>', 'Projeto salvo em mtcli_projects.json (LEGADO; evite, usa ativo)')
     .option('--agents', 'Inclui agentes do Tester (agent-XXXX) no link', false)
     .action(async (opts) => {
       if (!platformIsWindows()) {
