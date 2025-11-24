@@ -16,6 +16,7 @@ mtcli-integrado.code-workspace
 projects/terminals/
 ducascopy_state.json
 mtcli_projects.json
-# Ignore compiled MQ5 binaries and logs
+# Ignore compiled MQ5 binaries and logs (anywhere)
 *.ex5
+*.EX5
 *.log
