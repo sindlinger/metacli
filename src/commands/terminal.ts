@@ -311,25 +311,6 @@ export function registerConfigCommands(program: Command) {
   const term = program.command('config').description('Configurações e operações diretas do MT5');
 
   term
-    .command('start')
-    .description('Inicia o terminal64.exe do projeto com chaves /config, /profile, /portable')
-    .option('--config <ini>', 'Arquivo .ini customizado (/config)')
-    .option('--profile <name>', 'Profile (/profile)')
-    .option('--portable', 'Força modo portátil (/portable)', false)
-    .option('--datapath <path>', 'Define /datapath:<path> se suportado')
-    .option('--detach', 'Não esperar o processo (default: esperar)', false)
-    .option('--project <id>', 'Projeto alvo')
-    .action(async (opts) => {
-      const info = await store.useOrThrow(opts.project);
-      if (!info.terminal) {
-        throw new Error('terminal64.exe não configurado para o projeto.');
-      }
-      const args = buildArgs(opts);
-      await runCommand(info.terminal, args, { stdio: opts.detach ? 'ignore' : 'inherit', detach: opts.detach });
-      console.log(chalk.green(`[terminal] iniciado ${info.terminal} ${args.join(' ')}`));
-    });
-
-  term
     .command('config-set')
     .description('Altera um par key=value em config/common.ini do projeto')
     .requiredOption('--key <key>', 'Chave (ex.: EnableDlls)')
@@ -653,59 +634,4 @@ export function registerConfigCommands(program: Command) {
       console.log(chalk.green(`[terminal] tester ini gerado em ${outPath}`));
     });
 
-  term
-    .command('launch')
-    .description('Gera ini temporário (login/server/profile/expert) e abre terminal com /config')
-    .requiredOption('--login <id>')
-    .requiredOption('--password <pass>')
-    .requiredOption('--server <srv>')
-    .option('--profile <name>')
-    // StartUp
-    .option('--start-expert <path>')
-    .option('--start-expert-params <file>')
-    .option('--start-symbol <symbol>')
-    .option('--start-period <period>')
-    .option('--start-template <tpl>')
-    .option('--start-script <path>')
-    .option('--start-script-params <file>')
-    .option('--start-shutdown', 'ShutdownTerminal=1', false)
-    // Tester
-    .option('--tester-expert <path>')
-    .option('--tester-params <file>')
-    .option('--tester-symbol <symbol>')
-    .option('--tester-period <period>')
-    .option('--tester-login <login>')
-    .option('--tester-model <n>')
-    .option('--tester-execution <ms>')
-    .option('--tester-optimization <n>')
-    .option('--tester-criterion <n>')
-    .option('--tester-from <YYYY.MM.DD>')
-    .option('--tester-to <YYYY.MM.DD>')
-    .option('--tester-forward-mode <n>')
-    .option('--tester-forward-date <YYYY.MM.DD>')
-    .option('--tester-report <name>')
-    .option('--tester-replace-report', 'ReplaceReport=1', false)
-    .option('--tester-shutdown', 'ShutdownTerminal=1', false)
-    .option('--tester-deposit <value>')
-    .option('--tester-currency <ccy>')
-    .option('--tester-leverage <ratio>')
-    .option('--tester-use-local', 'UseLocal=1', false)
-    .option('--tester-use-remote', 'UseRemote=1', false)
-    .option('--tester-use-cloud', 'UseCloud=1', false)
-    .option('--tester-visual', 'Visual=1', false)
-    .option('--tester-port <n>')
-    .option('--portable', 'Usar /portable', false)
-    .option('--datapath <path>', 'Define /datapath:<path>')
-    .option('--project <id>')
-    .option('--keep-ini', 'Não apagar ini temporário', false)
-    .action(async (opts) => {
-      const info = await store.useOrThrow(opts.project);
-      if (!info.terminal) throw new Error('terminal64.exe não configurado.');
-      const tmpIni = path.join(process.cwd(), `mtcli_tmp_${Date.now()}.ini`);
-      const content = renderConfigTemplate(opts);
-      await fs.writeFile(tmpIni, content, 'utf8');
-      const args = buildArgs({ ...opts, config: tmpIni });
-      await runCommand(info.terminal, args, { stdio: 'inherit', detach: false });
-      if (!opts.keepIni) await fs.remove(tmpIni).catch(() => {});
-    });
 }

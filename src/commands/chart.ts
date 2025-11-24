@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { ProjectStore, ProjectInfo } from '../config/projectStore.js';
 import { normalizePath, platformIsWindows, resolvePowerShell } from '../utils/paths.js';
 import { sendListenerCommand } from '../utils/listenerProtocol.js';
+import { registerObjectsSubcommands } from './objects.js';
 import { execa } from 'execa';
 
 const store = new ProjectStore();
@@ -176,6 +177,7 @@ async function listMqlFiles(info: ProjectInfo, kind: 'indicator' | 'expert' | 's
 
 export function registerChartCommands(program: Command) {
   const chart = program.command('chart').description('Opera gráficos e templates via listener');
+  registerObjectsSubcommands(chart);
   const screenshot = chart
     .command('screenshot')
     .description('Captura um screenshot do gráfico atual (MQL5/Files/screenshots por padrão)')

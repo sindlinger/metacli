@@ -7,7 +7,11 @@ import fs from 'fs-extra';
 const store = new ProjectStore();
 
 export function registerObjectsCommands(program: Command) {
-  const objects = program.command('objects').description('Opera objetos de gráfico (OBJ_*) via listener');
+  return registerObjectsSubcommands(program.command('objects'));
+}
+
+export function registerObjectsSubcommands(parent: Command) {
+  const objects = parent.command('objects').description('Opera objetos de gráfico (OBJ_*) via listener');
 
   objects
     .command('list')
