@@ -16,6 +16,14 @@ import { registerGlobalsCommands } from './commands/globals.js';
 import { registerEventsCommands } from './commands/events.js';
 import { registerObjectsCommands } from './commands/objects.js';
 import { registerInputsCommands } from './commands/inputs.js';
+import { registerWatchCommands } from './commands/watch.js';
+import { registerDoctorCommands } from './commands/doctor.js';
+import { registerRawCommands } from './commands/raw.js';
+import { registerSnapshotCommands } from './commands/snapshot.js';
+import { registerSyncCommands } from './commands/sync.js';
+import { registerReportCommands } from './commands/report.js';
+import { registerTradeCommands } from './commands/trade.js';
+import { registerCopyCommands } from './commands/rawcopy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -35,6 +43,14 @@ async function main() {
   registerEventsCommands(program);
   registerObjectsCommands(program);
   registerInputsCommands(program);
+  registerWatchCommands(program);
+  registerDoctorCommands(program);
+  registerRawCommands(program);
+  registerSnapshotCommands(program);
+  registerSyncCommands(program);
+  registerReportCommands(program);
+  registerTradeCommands(program);
+  registerCopyCommands(program);
   registerProjectCommands(program);
   registerChartCommands(program);
   registerIndicatorCommands(program);
@@ -53,7 +69,10 @@ async function main() {
       '  mtcli run -i Examples\\ZigZag\n' +
       '  mtcli run -e Moving_Average -v\n' +
       '  mtcli chart capture\n' +
-      '  mtcli globals list\n'
+      '  mtcli globals list\n' +
+      '  mtcli events tail --errors --follow\n' +
+      '  mtcli watch --file Foo.mq5 --indicator Foo\n' +
+      '  mtcli tester quick --expert MyEA --symbol EURUSD --period H1\n'
   );
 
   try {
