@@ -1,194 +1,49 @@
-import { Command } from 'commander';
 import path from 'path';
-import fs from 'fs-extra';
-import chalk from 'chalk';
-import { ProjectStore, ProjectInfo, repoRoot } from '../config/projectStore.js';
-import { runCommand } from '../utils/shell.js';
-import { toWinPath, toWslPath, normalizePath, platformIsWindows, resolvePowerShell } from '../utils/paths.js';
-import { printLatestLogFromDataDir } from '../utils/logs.js';
 import { execa } from 'execa';
+import chalk from 'chalk';
+import { ProjectStore } from '../config/projectStore.js';
+import { runCommand } from '../utils/shell.js';
 
 const store = new ProjectStore();
 
-export interface ListenerRunOpts {
-  project?: string;
-  config?: string;
-  profile?: string;
-}
-
-function psQuoteLiteral(input: string): string {
-  const escaped = input.replace(/'/g, "''");
-  return `'${escaped}'`;
-}
-
-async function runListenerForInfo(info: ProjectInfo, options: ListenerRunOpts) {
-  if (!info.terminal) {
-    throw new Error('terminal64.exe não configurado no projeto');
-  }
-  const dataDir = info.data_dir;
-  if (!dataDir) {
-    throw new Error('Defina data_dir no projeto (mtcli project save --data-dir ...)');
-  }
-  const configPath = normalizePath(options.config || path.join(repoRoot(), 'listener.ini'));
-  if (!(await fs.pathExists(configPath))) {
-    throw new Error(`listener.ini não encontrado: ${configPath}`);
-  }
-  const args = [
-    `/config:${toWinPath(configPath)}`,
-    `/profile:${options.profile || 'Default'}`,
-  ];
-  // Observação: não forçamos /datapath; o terminal usará o datapath padrão configurado no próprio MT5.
-  const exe = toWslPath(info.terminal);
-  console.log(chalk.gray(`[listener] ${exe} ${args.join(' ')}`));
-  await runCommand(exe, args, { detach: true, stdio: 'ignore' });
-  if (!(await waitForTerminalStart(info.terminal))) {
-    throw new Error('Terminal não permaneceu aberto após o restart. Verifique o listener.');
-  }
-  console.log(chalk.green('Terminal iniciado em segundo plano.'));
-  await printLatestLogFromDataDir(dataDir);
-}
-
-export async function runListenerInstance(options: ListenerRunOpts) {
-  const info = await store.useOrThrow(options.project);
-  await runListenerForInfo(info, options);
-}
-
-let cachedPowerShell: string | null = null;
-
-function powerShellExe(): string {
-  if (!platformIsWindows()) {
-    throw new Error('Operação disponível apenas no Windows/WSL.');
-  }
-  if (!cachedPowerShell) {
-    cachedPowerShell = resolvePowerShell();
-  }
-  return cachedPowerShell;
-}
-
-async function killTerminalProcesses(targetExe?: string) {
-  if (!platformIsWindows()) return;
+/**
+ * Verifica se há um terminal rodando (best-effort).
+ * Usa pgrep -f pelo nome do executável; em WSL pode não ver processos Windows.
+ */
+export async function isListenerRunning(exePath?: string): Promise<boolean> {
+  if (!exePath) return false;
+  const name = path.basename(exePath);
   try {
-    if (!targetExe) {
-      console.log(
-        chalk.yellow(
-          '[listener] terminal alvo não informado; não vou encerrar nenhum terminal para evitar derrubar instâncias de outros projetos.'
-        )
-      );
-      return;
-    }
-    const script = `
-$path = ${psQuoteLiteral(toWinPath(targetExe))};
-$procs = Get-Process -Name terminal64 -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $path };
-if ($procs) { $procs | Stop-Process -Force }
-`;
-    console.log(chalk.gray('[listener] encerrando apenas o terminal configurado...'));
-    await runCommand(powerShellExe(), ['-NoLogo', '-Command', script], { stdio: 'ignore' });
-  } catch {
-    // ignora falhas (processo já fechado)
-  }
-}
-
-async function ensureTerminalStopped(targetExe?: string, timeoutMs = 5000) {
-  if (!platformIsWindows()) return;
-  const start = Date.now();
-  let attempted = false;
-  while (await isListenerRunning(targetExe)) {
-    attempted = true;
-    await killTerminalProcesses(targetExe);
-    if (Date.now() - start >= timeoutMs) {
-      throw new Error('Não foi possível encerrar terminal64.exe automaticamente. Feche manualmente e tente novamente.');
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  if (attempted) {
-    console.log(chalk.green('[listener] terminal anterior encerrado.'));
-  }
-}
-
-export async function restartListenerInstance(options: ListenerRunOpts) {
-  const info = await store.useOrThrow(options.project);
-  await ensureTerminalStopped(info.terminal);
-  await runListenerForInfo(info, options);
-}
-
-export async function isListenerRunning(targetExe?: string): Promise<boolean> {
-  if (!platformIsWindows()) return true;
-  try {
-    const args = targetExe
-      ? [
-          '-NoLogo',
-          '-Command',
-          `
-$path = ${psQuoteLiteral(toWinPath(targetExe))};
-if (Get-Process -Name terminal64 -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $path }) { exit 0 } else { exit 1 }
-`,
-        ]
-      : ['-NoLogo', '-Command', 'if (Get-Process -Name terminal64 -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }'];
-    await execa(powerShellExe(), args, { stdio: 'ignore' });
-    return true;
+    const { stdout } = await execa('pgrep', ['-f', name]);
+    return stdout.trim().length > 0;
   } catch {
     return false;
   }
 }
 
-async function waitForTerminalStart(targetExe?: string, timeoutMs = 5000): Promise<boolean> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    if (await isListenerRunning(targetExe)) return true;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  return false;
+interface RestartOpts {
+  project: string;
+  profile?: string;
 }
 
-
-async function showListenerStatus(project?: string) {
-  const info = await store.useOrThrow(project);
-  const dataDir = info.data_dir;
-  if (!dataDir) {
-    throw new Error('data_dir não configurado para este projeto.');
-  }
-  await printLatestLogFromDataDir(dataDir);
+/**
+ * Inicia o terminal do projeto em background para que o CommandListener EA responda.
+ * Não bloqueia. Se o terminal não estiver configurado, lança erro.
+ */
+export async function restartListenerInstance(opts: RestartOpts): Promise<void> {
+  const info = await store.useOrThrow(opts.project);
+  if (!info.terminal) throw new Error('terminal64.exe não configurado.');
+  const args: string[] = [];
+  if (opts.profile) args.push(`/profile:${opts.profile}`);
+  if (info.defaults?.portable) args.push('/portable');
+  if (info.data_dir) args.push(`/datapath:${info.data_dir}`);
+  await runCommand(info.terminal, args, { stdio: 'ignore', detach: true });
+  console.log(chalk.gray(`[listener] terminal iniciado em background (${info.terminal})`));
 }
 
-function warnLegacy() {
-  console.log(
-    chalk.yellow('[listener] Este comando é legado. Use `mtcli init` para controlar o ambiente sempre que possível.')
-  );
+// Mantido por compatibilidade: alguns pontos usam stopListenerInstance.
+export async function stopListenerInstance(): Promise<void> {
+  // No-op placeholder; em versões futuras podemos localizar e encerrar o processo.
 }
 
-export function registerListenerCommands(program: Command) {
-  const listener = program
-    .command('listener')
-    .description('[LEGACY] Controle manual do CommandListenerEA (prefira `mtcli init`)');
-
-  listener
-    .command('start')
-    .description('Abre o terminal com o listener.ini')
-    .option('--project <id>', 'Projeto configurado')
-    .option('--config <path>', 'Arquivo listener.ini customizado')
-    .option('--profile <name>', 'Perfil do MT5', 'Default')
-    .action(async (opts) => {
-      warnLegacy();
-      await runListenerInstance(opts);
-    });
-
-  listener
-    .command('restart')
-    .description('Fecha o terminal atual e inicia novamente com listener.ini')
-    .option('--project <id>')
-    .option('--config <path>')
-    .option('--profile <name>')
-    .action(async (opts) => {
-      warnLegacy();
-      await restartListenerInstance(opts);
-    });
-
-  listener
-    .command('status')
-    .description('Mostra o log mais recente do listener')
-    .option('--project <id>')
-    .action(async (opts) => {
-      warnLegacy();
-      await showListenerStatus(opts.project);
-    });
-}
+// Nenhuma função register* aqui; este arquivo só expõe helpers usados internamente.

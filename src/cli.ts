@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
-import { registerProjectCommands } from './commands/project.js';
 import { registerInitCommand } from './commands/init.js';
 import { registerChartCommands, registerIndicatorCommands, registerExpertCommands } from './commands/chart.js';
 import { registerTesterCommands } from './commands/tester.js';
@@ -53,7 +52,6 @@ async function main() {
   registerTradeCommands(program);
   registerCopyCommands(program);
   registerTerminalCommands(program);
-  registerProjectCommands(program);
   registerChartCommands(program);
   registerIndicatorCommands(program);
   registerExpertCommands(program);
