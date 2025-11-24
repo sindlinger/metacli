@@ -16,7 +16,7 @@ CTrade trade;
 
 string g_files_dir;
 int    g_timer_sec = 1;
-string LISTENER_VERSION = "1.0.2";
+string LISTENER_VERSION = "1.0.3";
 
 // Armazena último attach para inputs simples
 string g_lastIndName = "";
@@ -214,8 +214,12 @@ bool H_IndName(string p[], string &m, string &d[])
 bool H_IndHandle(string p[], string &m, string &d[])
 {
   if(ArraySize(p)<4){ m="params"; return false; }
-  // Sem API direta; devolve -1
-  ArrayResize(d,1); d[0]="-1"; m="not_implemented"; return true;
+  string sym=p[0]; ENUM_TIMEFRAMES tf=TfFromString(p[1]); int sub=SubwindowSafe(p[2]); string name=p[3];
+  long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
+  long h=ChartIndicatorGet(cid, sub-1, name);
+  ArrayResize(d,1); d[0]=IntegerToString((long)h);
+  m=(h!=INVALID_HANDLE)?"ok":"not_found";
+  return true;
 }
 
 bool H_DetachAll(string p[], string &m, string &d[])
