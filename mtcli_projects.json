@@ -3,10 +3,10 @@
   "projects": {
     "project-20251124-125338-klj1": {
       "project": "project-20251124-125338-klj1",
-      "libs": "/mnt/c/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265/MQL5/Libraries",
+      "libs": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1/MQL5/Libraries",
       "terminal": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1/terminal64.exe",
       "metaeditor": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1/MetaEditor64.exe",
-      "data_dir": "/mnt/c/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265",
+      "data_dir": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1",
       "defaults": {
         "symbol": "EURUSD",
         "period": "H1",

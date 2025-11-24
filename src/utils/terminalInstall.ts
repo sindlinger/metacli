@@ -67,32 +67,6 @@ async function isTerminalFolder(dir: string): Promise<boolean> {
   return fs.pathExists(path.join(dir, 'terminal64.exe'));
 }
 
-async function findDataDirByOrigin(installRoot: string): Promise<string | null> {
-  const appData = await getWinAppData();
-  const terminalsRoot = path.join(appData, 'MetaQuotes', 'Terminal');
-  if (!(await fs.pathExists(terminalsRoot))) return null;
-  const entries = await fs.readdir(terminalsRoot);
-  const installWin = await toWindowsPath(installRoot);
-  for (const e of entries) {
-    const originPath = path.join(terminalsRoot, e, 'origin.txt');
-    try {
-      const content = await fs.readFile(originPath, 'utf8');
-      if (content.trim() === installWin) {
-        return path.join(terminalsRoot, e);
-      }
-    } catch {
-      // ignore
-    }
-  }
-  return null;
-}
-
-async function touchDataDirByMetaEditor(installRoot: string): Promise<void> {
-  const meta = path.join(installRoot, METAEDITOR_EXE);
-  const metaWin = await toWindowsPath(meta);
-  // Executa MetaEditor em modo silencioso para forçar criação do data_dir
-  await execa('cmd.exe', ['/C', metaWin, '/version'], { timeout: 30000, windowsHide: true }).catch(() => {});
-}
 
 async function downloadFile(url: string, destination: string): Promise<void> {
   await fs.ensureDir(path.dirname(destination));
@@ -143,24 +117,14 @@ export async function installTerminalForProject(projectId: string) {
 
   const terminalExe = path.join(destRoot, 'terminal64.exe');
   const metaeditorExe = path.join(destRoot, 'MetaEditor64.exe');
-
-  // Garante que o data_dir (hash em %APPDATA%) foi criado e pertence a este terminal.
-  let dataDirDetected = await findDataDirByOrigin(destRoot);
-  if (!dataDirDetected) {
-    await touchDataDirByMetaEditor(destRoot);
-    dataDirDetected = await findDataDirByOrigin(destRoot);
-  }
-  if (!dataDirDetected) {
-    throw new Error('Não foi possível localizar o data_dir gerado para o terminal recém-instalado. Abra o terminal uma vez ou tente novamente.');
-  }
-
-  const libs = path.join(dataDirDetected, 'MQL5', 'Libraries');
+  const dataDir = destRoot; // usamos /portable implícito: dados ficam na própria pasta de instalação
+  const libs = path.join(dataDir, 'MQL5', 'Libraries');
   await fs.ensureDir(libs);
 
   return {
     terminal: terminalExe,
     metaeditor: metaeditorExe,
-    dataDir: dataDirDetected,
+    dataDir,
     libs,
     root: destRoot,
   };
