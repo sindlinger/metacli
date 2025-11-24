@@ -24,6 +24,7 @@ import { registerSyncCommands } from './commands/sync.js';
 import { registerReportCommands } from './commands/report.js';
 import { registerTradeCommands } from './commands/trade.js';
 import { registerCopyCommands } from './commands/rawcopy.js';
+import { registerTerminalCommands } from './commands/terminal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -51,6 +52,7 @@ async function main() {
   registerReportCommands(program);
   registerTradeCommands(program);
   registerCopyCommands(program);
+  registerTerminalCommands(program);
   registerProjectCommands(program);
   registerChartCommands(program);
   registerIndicatorCommands(program);
