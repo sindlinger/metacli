@@ -93,4 +93,30 @@ export function registerTesterCommands(program: Command) {
       await runCommand(exe, args, { stdio: 'inherit', detach: false });
       console.log(chalk.green(`[tester] quick iniciado com ${iniPath}`));
     });
+
+  tester
+    .command('matrix')
+    .description('Roda múltiplas combinações (símbolos/períodos) sequencialmente')
+    .requiredOption('--expert <name>', 'Expert em Experts\\')
+    .requiredOption('--symbols <list>', 'Lista separada por vírgulas')
+    .requiredOption('--periods <list>', 'Lista separada por vírgulas')
+    .option('--visual', 'Modo visual', false)
+    .option('--from <YYYY.MM.DD>', 'Data inicial')
+    .option('--to <YYYY.MM.DD>', 'Data final')
+    .option('--project <id>')
+    .action(async (opts) => {
+      const symbols = String(opts.symbols).split(',').map((s: string) => s.trim()).filter(Boolean);
+      const periods = String(opts.periods).split(',').map((s: string) => s.trim()).filter(Boolean);
+      for (const symbol of symbols) {
+        for (const period of periods) {
+          const argsBase = ['--expert', opts.expert, '--symbol', symbol, '--period', period];
+          if (opts.visual) argsBase.push('--visual');
+          if (opts.from) argsBase.push('--from', opts.from);
+          if (opts.to) argsBase.push('--to', opts.to);
+          if (opts.project) argsBase.push('--project', opts.project);
+          const { execa } = await import('execa');
+          await execa('mtcli', ['tester', 'quick', ...argsBase], { stdio: 'inherit' });
+        }
+      }
+    });
 }

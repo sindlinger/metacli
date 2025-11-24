@@ -42,11 +42,24 @@ export function registerEventsCommands(program: Command) {
     .command('tail')
     .option('-n, --lines <n>', 'Linhas', (v) => parseInt(v, 10))
     .option('-f, --filter <text>', 'Filtro (contém)')
+    .option('--follow', 'Segue em tempo real', false)
+    .option('--errors', 'Filtra erros (error/critical/fail)', false)
     .option('--project <id>')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       const n = Number.isFinite(opts.lines) ? opts.lines : 200;
-      await tailLogs(info, n, opts.filter);
+      const flt = opts.errors ? 'error' : opts.filter;
+      await tailLogs(info, n, flt);
+      if (opts.follow) {
+        console.log(chalk.gray('[events] follow ativo (Ctrl+C para parar)'));
+        const logsDir = info.data_dir ? path.join(info.data_dir, 'Logs') : '';
+        if (!logsDir || !(await fs.pathExists(logsDir))) return;
+        fs.watch(logsDir, async () => {
+          await tailLogs(info, n, flt);
+        });
+        // manter vivo
+        await new Promise(() => {});
+      }
     });
 
   events

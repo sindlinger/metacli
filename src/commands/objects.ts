@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { ProjectStore } from '../config/projectStore.js';
 import { sendListenerCommand } from '../utils/listenerProtocol.js';
+import fs from 'fs-extra';
 
 const store = new ProjectStore();
 
@@ -74,5 +75,42 @@ export function registerObjectsCommands(program: Command) {
       });
       await sendListenerCommand(info, 'OBJ_CREATE', [opts.type, opts.name, payload], { timeoutMs: 8000 });
       console.log(chalk.green(`[objects] create ${opts.type} ${opts.name}`));
+    });
+
+  objects
+    .command('export')
+    .description('Exporta objetos para JSON (depende de OBJ_LIST retornar dados)')
+    .option('--project <id>')
+    .option('--out <file>', 'Arquivo de saída', 'objects.json')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      const resp = await sendListenerCommand(info, 'OBJ_LIST', ['', ''], { timeoutMs: 8000 });
+      await fs.writeFile(opts.out, JSON.stringify(resp.data, null, 2), 'utf8');
+      console.log(chalk.green(`[objects] exportado para ${opts.out}`));
+    });
+
+  objects
+    .command('import')
+    .description('Importa objetos de um JSON e cria via OBJ_CREATE')
+    .requiredOption('--file <json>', 'Arquivo gerado pelo export')
+    .option('--project <id>')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      const raw = await fs.readFile(opts.file, 'utf8');
+      let entries: string[] = [];
+      try {
+        entries = JSON.parse(raw);
+        if (!Array.isArray(entries)) throw new Error('JSON deve ser um array de strings');
+      } catch (err) {
+        throw new Error('Arquivo inválido para import (esperado array JSON de linhas do OBJ_LIST).');
+      }
+      for (const line of entries) {
+        // espera formato "type|name|payloadJSON" devolvido pelo listener
+        const parts = String(line).split('|');
+        if (parts.length < 3) continue;
+        const [type, name, payload] = parts;
+        await sendListenerCommand(info, 'OBJ_CREATE', [type, name, payload], { timeoutMs: 8000 });
+      }
+      console.log(chalk.green(`[objects] import concluiu (${entries.length} itens)`));
     });
 }
