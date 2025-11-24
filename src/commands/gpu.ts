@@ -309,7 +309,7 @@ export function registerGpuCommands(program: Command) {
     .option('--script <file>', 'Script de build (default: build_cmd.bat)', 'build_cmd.bat')
     .option('--config <cfg>', 'Config (Release/Debug)', 'Release')
     .option('--arch <arch>', 'Arquitetura (x64)', 'x64')
-    .option('--copy-to-libs', 'Copia o output (Release) para MQL5/Libraries do projeto ativo', false)
+    .option('--copy-to-libs', 'LEGADO (não usar): antes copiava para MQL5/Libraries', false)
     .action(async (opts) => {
       const projDir = opts.dir
         ? normalizePath(opts.dir)
@@ -347,14 +347,7 @@ export function registerGpuCommands(program: Command) {
       }
 
       if (opts.copyToLibs) {
-        const info = await store.useOrThrow();
-        if (!info.data_dir) throw new Error('data_dir do projeto ativo não configurado.');
-        const libsDest = path.join(info.data_dir, 'MQL5', 'Libraries');
-        await fsExtra.ensureDir(libsDest);
-        for (const f of dlls) {
-          await fsExtra.copy(path.join(releaseDir, f), path.join(libsDest, f), { overwrite: true });
-          console.log(chalk.green(`[gpu build] copiado ${f} -> ${libsDest}`));
-        }
+        console.log(chalk.yellow('[gpu build] --copy-to-libs é legado; artefatos permanecem no diretório de build.'));
       }
     });
 }
