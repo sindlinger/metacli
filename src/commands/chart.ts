@@ -25,7 +25,15 @@ function resolveSubwindow(info: ProjectInfo, fallback?: number) {
 function resolveIndicatorName(info: ProjectInfo, fallback?: string) {
   const value = fallback ?? (info.defaults?.indicator as string | undefined);
   if (!value) {
-    throw new Error('Defina --indicator ou configure um padrão via `mtcli project defaults set --indicator <nome>`.');
+    throw new Error('Defina --name ou configure um padrão via `mtcli project defaults set --indicator <nome>`.');
+  }
+  return value;
+}
+
+function resolveExpertName(info: ProjectInfo, fallback?: string) {
+  const value = fallback ?? (info.defaults?.expert as string | undefined);
+  if (!value) {
+    throw new Error('Defina --expert ou configure um padrão via `mtcli project defaults set --expert <nome>`.');
   }
   return value;
 }
@@ -364,7 +372,7 @@ export function registerChartCommands(program: Command) {
     .description('Consulta ChartWindowFind para descobrir em qual subjanela está um indicador')
     .option('--symbol <symbol>')
     .option('--period <period>')
-    .option('--indicator <name>')
+    .option('--name <name>')
     .option('--project <id>')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
@@ -393,7 +401,7 @@ export function registerChartCommands(program: Command) {
     .description('Anexa o indicador (opcional) e envia Ctrl+S / Enter no MT5 para salvar o gráfico pelo próprio terminal')
     .option('--symbol <symbol>')
     .option('--period <period>')
-    .option('--indicator <name>', 'Nome do indicador (default usa projeto)')
+    .option('--name <name>', 'Nome do indicador (default usa projeto)')
     .option('--subwindow <index>', 'Subjanela do indicador', (val) => parseInt(val, 10))
     .option('--project <id>')
     .option('--skip-attach', 'Pula o ATTACH_IND antes de salvar', false)
@@ -484,19 +492,20 @@ export function registerIndicatorCommands(program: Command) {
   indicator
     .command('add')
     .alias('attach')
-    .option('--symbol <symbol>')
-    .option('--period <period>')
-    .option('--indicator <name>', 'Nome do indicador (usa default do projeto se omitido)')
+    .argument('[name]')
+    .option('-s, --symbol <symbol>')
+    .option('-p, --period <period>')
+    .option('-n, --name <name>', 'Nome do indicador (usa default do projeto se omitido)')
     .option('--subwindow <index>', 'Subjanela', (val) => parseInt(val, 10))
     .option('--project <id>', 'Projeto configurado')
-    .action(async (opts) => {
+    .action(async (nameArg, opts) => {
       const info = await store.useOrThrow(opts.project);
       if (!info.data_dir) {
         throw new Error('Projeto sem data_dir. Configure via mtcli project save --data-dir ...');
       }
       const symbol = resolveSymbol(info, opts.symbol);
       const period = resolvePeriod(info, opts.period);
-      const indicatorName = resolveIndicatorName(info, opts.indicator);
+      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
@@ -507,19 +516,20 @@ export function registerIndicatorCommands(program: Command) {
   indicator
     .command('del')
     .alias('detach')
-    .option('--symbol <symbol>')
-    .option('--period <period>')
-    .option('--indicator <name>', 'Nome do indicador a remover (usa defaults se omitido)')
+    .argument('[name]')
+    .option('-s, --symbol <symbol>')
+    .option('-p, --period <period>')
+    .option('-n, --name <name>', 'Nome do indicador a remover (usa defaults se omitido)')
     .option('--subwindow <index>', 'Subjanela', (val) => parseInt(val, 10))
     .option('--project <id>')
-    .action(async (opts) => {
+    .action(async (nameArg, opts) => {
       const info = await store.useOrThrow(opts.project);
       if (!info.data_dir) {
         throw new Error('Projeto sem data_dir configurado.');
       }
       const symbol = resolveSymbol(info, opts.symbol);
       const period = resolvePeriod(info, opts.period);
-      const indicatorName = resolveIndicatorName(info, opts.indicator);
+      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
@@ -539,8 +549,8 @@ export function registerIndicatorCommands(program: Command) {
   indicator
     .command('total')
     .description('Consulta ChartIndicatorsTotal para uma subjanela')
-    .option('--symbol <symbol>')
-    .option('--period <period>')
+    .option('-s, --symbol <symbol>')
+    .option('-p, --period <period>')
     .option('--subwindow <index>', 'Subjanela', (val) => parseInt(val, 10))
     .option('--project <id>')
     .action(async (opts) => {
@@ -557,8 +567,8 @@ export function registerIndicatorCommands(program: Command) {
   indicator
     .command('name')
     .description('Lê o nome curto de um indicador por índice (ChartIndicatorName)')
-    .option('--symbol <symbol>')
-    .option('--period <period>')
+    .option('-s, --symbol <symbol>')
+    .option('-p, --period <period>')
     .option('--subwindow <index>', 'Subjanela', (val) => parseInt(val, 10))
     .option('--index <idx>', 'Índice do indicador (default 0)', (val) => parseInt(val, 10))
     .option('--project <id>')
@@ -578,16 +588,17 @@ export function registerIndicatorCommands(program: Command) {
     .command('handle')
     .alias('get')
     .description('Consulta ChartIndicatorGet para obter o handle de um indicador anexado')
-    .option('--symbol <symbol>')
-    .option('--period <period>')
-    .option('--indicator <name>')
+    .argument('[name]')
+    .option('-s, --symbol <symbol>')
+    .option('-p, --period <period>')
+    .option('-n, --name <name>')
     .option('--subwindow <index>', 'Subjanela', (val) => parseInt(val, 10))
     .option('--project <id>')
-    .action(async (opts) => {
+    .action(async (nameArg, opts) => {
       const info = await store.useOrThrow(opts.project);
       const symbol = resolveSymbol(info, opts.symbol);
       const period = resolvePeriod(info, opts.period);
-      const indicatorName = resolveIndicatorName(info, opts.indicator);
+      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
@@ -598,20 +609,21 @@ export function registerIndicatorCommands(program: Command) {
   indicator
     .command('redraw')
     .description('Força o indicador a reaplicar (detach/attach sequencial)')
-    .option('--symbol <symbol>')
-    .option('--period <period>')
-    .option('--indicator <name>')
+    .argument('[name]')
+    .option('-s, --symbol <symbol>')
+    .option('-p, --period <period>')
+    .option('-n, --name <name>')
     .option('--subwindow <index>', 'Subjanela', (val) => parseInt(val, 10))
     .option('--project <id>')
     .option('--wait <ms>', 'Atraso entre o detach e o add', (val) => parseInt(val, 10))
-    .action(async (opts) => {
+    .action(async (nameArg, opts) => {
       const info = await store.useOrThrow(opts.project);
       if (!info.data_dir) {
         throw new Error('Projeto sem data_dir configurado.');
       }
       const symbol = resolveSymbol(info, opts.symbol);
       const period = resolvePeriod(info, opts.period);
-      const indicatorName = resolveIndicatorName(info, opts.indicator);
+      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       const wait = Number.isFinite(opts.wait) ? Math.max(0, opts.wait) : 600;
       if (!symbol || !period) {
@@ -631,13 +643,14 @@ export function registerExpertCommands(program: Command) {
 
   expert
     .command('add')
-    .requiredOption('--expert <name>', 'Nome do EA (ex.: Examples\\MACD\\MACD Sample)')
-    .option('--template <tpl>', 'Template (.tpl) já instalado com o EA')
+    .argument('[expert]')
+    .option('-e, --expert <name>', 'Nome do EA (ex.: Examples\\MACD\\MACD Sample)')
+    .option('-t, --template <tpl>', 'Template (.tpl) já instalado com o EA')
     .option('--template-file <path>', 'Template (.tpl) a copiar e usar imediatamente')
-    .option('--symbol <symbol>')
-    .option('--period <period>')
+    .option('-s, --symbol <symbol>')
+    .option('-p, --period <period>')
     .option('--project <id>')
-    .action(async (opts) => {
+    .action(async (expertArg, opts) => {
       const info = await store.useOrThrow(opts.project);
       if (!info.data_dir) {
         throw new Error('Projeto sem data_dir configurado.');
@@ -647,14 +660,15 @@ export function registerExpertCommands(program: Command) {
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
       }
+      const expertName = resolveExpertName(info, opts.expert ?? expertArg);
       const templateName = await ensureTemplateName(info.data_dir, { name: opts.template, file: opts.templateFile }, 'chart');
-      await attachExpert(info, symbol, period, opts.expert, templateName);
+      await attachExpert(info, symbol, period, expertName, templateName);
     });
 
   expert
     .command('del')
-    .option('--symbol <symbol>')
-    .option('--period <period>')
+    .option('-s, --symbol <symbol>')
+    .option('-p, --period <period>')
     .option('--project <id>')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);

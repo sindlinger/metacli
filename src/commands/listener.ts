@@ -36,8 +36,8 @@ async function runListenerForInfo(info: ProjectInfo, options: ListenerRunOpts) {
   const args = [
     `/config:${toWinPath(configPath)}`,
     `/profile:${options.profile || 'Default'}`,
-    `/datapath:${toWinPath(dataDir)}`,
   ];
+  // Observação: não forçamos /datapath; o terminal usará o datapath padrão configurado no próprio MT5.
   const exe = toWslPath(info.terminal);
   console.log(chalk.gray(`[listener] ${exe} ${args.join(' ')}`));
   await runCommand(exe, args, { detach: true, stdio: 'ignore' });
@@ -68,14 +68,20 @@ function powerShellExe(): string {
 async function killTerminalProcesses(targetExe?: string) {
   if (!platformIsWindows()) return;
   try {
-    const script = targetExe
-      ? `
+    if (!targetExe) {
+      console.log(
+        chalk.yellow(
+          '[listener] terminal alvo não informado; não vou encerrar nenhum terminal para evitar derrubar instâncias de outros projetos.'
+        )
+      );
+      return;
+    }
+    const script = `
 $path = ${psQuoteLiteral(toWinPath(targetExe))};
 $procs = Get-Process -Name terminal64 -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $path };
 if ($procs) { $procs | Stop-Process -Force }
-`
-      : 'Get-Process -Name terminal64 -ErrorAction SilentlyContinue | Stop-Process -Force';
-    console.log(chalk.gray('[listener] encerrando instâncias atuais do terminal configurado...'));
+`;
+    console.log(chalk.gray('[listener] encerrando apenas o terminal configurado...'));
     await runCommand(powerShellExe(), ['-NoLogo', '-Command', script], { stdio: 'ignore' });
   } catch {
     // ignora falhas (processo já fechado)

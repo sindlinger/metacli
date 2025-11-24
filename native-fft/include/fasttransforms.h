@@ -23,6 +23,25 @@ http://www.fsf.org/licensing/licenses
 #include "alglibinternal.h"
 #include "alglibmisc.h"
 
+#ifndef _WIN32
+#define __declspec(x) __attribute__((visibility("default")))
+#define __stdcall
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef _WIN32
+#define RW_API __declspec(dllexport)
+#else
+#define RW_API __attribute__((visibility("default")))
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
 /////////////////////////////////////////////////////////////////////////
 //
 // THIS SECTION CONTAINS COMPUTATIONAL CORE DECLARATIONS (DATATYPES)
@@ -1068,6 +1087,28 @@ REVERSAL_WAVE_API int REVERSAL_WAVE_CALLCONV gpu_reversal_wave_synthetic_test(
     double oscillation,
     double noiseLevel,
     double* outWave,
+    double* outConfidence,
+    int* outFlags);
+
+REVERSAL_WAVE_API int REVERSAL_WAVE_CALLCONV gpu_reversal_wave_process_v2(
+    const double* open,
+    const double* price,  // close
+    const double* high,
+    const double* low,
+    const double* volume,
+    const double* pivots,
+    int length,
+    int window,
+    int modeFlags,
+    double priceWeight,
+    double volumeWeight,
+    double pivotWeight,
+    double candleWeight,
+    double* outPrice,
+    double* outCandle,
+    double* outZigZag,
+    double* outVolume,
+    double* outCombined,
     double* outConfidence,
     int* outFlags);
 

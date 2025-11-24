@@ -101,11 +101,12 @@ export function registerProjectCommands(program: Command) {
 
   defaults
     .command('set')
-    .requiredOption('--id <id>', 'Projeto alvo')
+    .option('--id <id>', 'Projeto alvo (default: last_project)')
     .option('--symbol <symbol>')
     .option('--period <period>')
     .option('--subwindow <index>', '', (val) => parseInt(val, 10))
     .option('--indicator <name>')
+    .option('--expert <name>')
     .option('--portable <flag>', 'true/false')
     .option('--profile <name>')
     .action(async (opts) => {
@@ -114,11 +115,21 @@ export function registerProjectCommands(program: Command) {
       if (opts.period) defaultsPayload.period = opts.period;
       if (Number.isInteger(opts.subwindow)) defaultsPayload.subwindow = opts.subwindow;
       if (opts.indicator !== undefined) defaultsPayload.indicator = opts.indicator;
+      if (opts.expert !== undefined) defaultsPayload.expert = opts.expert;
       if (opts.profile) defaultsPayload.profile = opts.profile;
       if (opts.portable !== undefined) {
         defaultsPayload.portable = opts.portable === 'true' || opts.portable === true;
       }
-      const updated = await store.updateDefaults(opts.id, defaultsPayload);
-      console.log(chalk.green(`Defaults atualizados para ${updated.project}`));
+      // Se id não for passado, usa last_project (store.useOrThrow resolve para o ativo)
+      const target = opts.id ?? (await store.useOrThrow()).project;
+      try {
+        const updated = await store.updateDefaults(target, defaultsPayload);
+        console.log(chalk.green(`Defaults atualizados para ${updated.project}`));
+      } catch (err) {
+        const file = await store.show();
+        const known = Object.keys(file.projects);
+        const hint = known.length ? `Projetos conhecidos: ${known.join(', ')}` : 'Nenhum projeto salvo. Use "mtcli project save --id <nome> --data-dir ... --libs ..."';
+        throw new Error(`Projeto "${target}" não encontrado. ${hint}`);
+      }
     });
 }

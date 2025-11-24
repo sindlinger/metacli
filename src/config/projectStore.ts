@@ -7,6 +7,7 @@ export interface ProjectDefaults {
   period?: string;
   subwindow?: number;
   indicator?: string | null;
+  expert?: string | null;
   portable?: boolean;
   profile?: string | null;
 }
@@ -29,7 +30,24 @@ export interface ProjectsFile {
 }
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PROJECTS_FILE = path.join(ROOT_DIR, '..', 'mtcli_projects.json');
+
+// Resolve onde armazenar/ler o mtcli_projects.json:
+// 1) MTCLI_PROJECTS (variável de ambiente), se definida.
+// 2) mtcli_projects.json no diretório atual (cwd), se existir.
+// 3) mtcli_projects.json ao lado do bin instalado (padrão original).
+function resolveProjectsFile(): string {
+  const envPath = process.env.MTCLI_PROJECTS;
+  if (envPath && envPath.trim().length > 0) {
+    return path.resolve(envPath);
+  }
+  const cwdFile = path.resolve(process.cwd(), 'mtcli_projects.json');
+  if (fs.existsSync(cwdFile)) {
+    return cwdFile;
+  }
+  return path.join(ROOT_DIR, '..', 'mtcli_projects.json');
+}
+
+const PROJECTS_FILE = resolveProjectsFile();
 
 export class ProjectStore {
   async load(): Promise<ProjectsFile> {

@@ -1,6 +1,14 @@
 {
-  "last_project": "dukas-cli",
+  "last_project": "mql5-terminal",
   "projects": {
+    "mql5-terminal": {
+      "project": "mql5-terminal",
+      "libs": "/mnt/c/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/80DC949B6D3DF1DE0B919D359660D2E7/MQL5/Libraries",
+      "terminal": "/mnt/c/mql5/terminal64.exe",
+      "metaeditor": "/mnt/c/mql5/MetaEditor64.exe",
+      "data_dir": "/mnt/c/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/80DC949B6D3DF1DE0B919D359660D2E7",
+      "updated_at": "2025-11-22T12:00:00"
+    },
     "dukas-cli": {
       "project": "dukas-cli",
       "libs": "/mnt/c/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265/MQL5/Libraries",

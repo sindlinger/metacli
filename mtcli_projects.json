@@ -1,5 +1,5 @@
 {
-  "last_project": "agent-terminal",
+  "last_project": "mql5-terminal",
   "projects": {
     "main-terminal": {
       "project": "main-terminal",
@@ -17,12 +17,12 @@
         "portable": false
       }
     },
-    "agent-terminal": {
-      "project": "agent-terminal",
-      "libs": "C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265/MQL5/Libraries",
-      "terminal": "C:/Dukascopy MetaTrader 5/terminal64.exe",
-      "metaeditor": "C:/Dukascopy MetaTrader 5/MetaEditor64.exe",
-      "data_dir": "C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/72D7079820AB4E374CDC07CD933C3265",
+    "mql5-terminal": {
+      "project": "mql5-terminal",
+      "libs": "C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/80DC949B6D3DF1DE0B919D359660D2E7/MQL5/Libraries",
+      "terminal": "C:/mql5/terminal64.exe",
+      "metaeditor": "C:/mql5/MetaEditor64.exe",
+      "data_dir": "C:/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/80DC949B6D3DF1DE0B919D359660D2E7",
       "defaults": {
         "symbol": "EURUSD",
         "period": "H1",
@@ -30,7 +30,7 @@
         "profile": "Default",
         "portable": false
       },
-      "updated_at": "2025-11-22T00:57:11.828Z",
+      "updated_at": "2025-11-22T13:28:03.498Z",
       "created_at": "2025-11-22T00:57:11.918Z"
     }
   }
