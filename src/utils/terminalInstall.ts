@@ -14,6 +14,7 @@ const BASE_TERMINAL_DIR = process.env.MTCLI_BASE_TERMINAL_DIR || path.join(repoR
 const DOWNLOADS_ROOT = path.join(BASE_TERMINAL_DIR, '_downloads');
 const FRESH_DIR = path.join(BASE_TERMINAL_DIR, 'mt5-fresh');
 const INSTALLER_PATH = path.join(DOWNLOADS_ROOT, 'mt5setup.exe');
+const POWERSHELL_PORTABLE_DIR = path.join(BASE_TERMINAL_DIR, '_tools', 'powershell');
 
 const TERMINAL_EXE = 'terminal64.exe';
 const METAEDITOR_EXE = 'metaeditor64.exe';
@@ -22,12 +23,21 @@ function isWin(): boolean {
   return process.platform === 'win32' || !!process.env.WSL_DISTRO_NAME;
 }
 
+function appendToPathIfMissing(dir: string) {
+  if (!dir) return;
+  const pathEnv = process.env.PATH || '';
+  if (!pathEnv.split(path.delimiter).includes(dir)) {
+    process.env.PATH = `${dir}${path.delimiter}${pathEnv}`;
+  }
+}
+
 async function findPowerShell(): Promise<string | null> {
   const candidates = [
     process.env.POWERSHELL_EXE,
     'powershell.exe',
     '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe',
     'pwsh.exe',
+    path.join(POWERSHELL_PORTABLE_DIR, 'pwsh.exe'),
   ].filter(Boolean) as string[];
   for (const c of candidates) {
     try {
