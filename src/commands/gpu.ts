@@ -292,13 +292,6 @@ export function registerGpuCommands(program: Command) {
   const gpu = program.command('gpu').description('Build/link das DLLs GPU');
 
   gpu
-    .command('build')
-    .description('Fluxo de build das DLLs GPU (placeholder)')
-    .action(() => {
-      console.log('gpu build: conecte com seu pipeline de build (em desenvolvimento).');
-    });
-
-  gpu
     .command('link')
     .description('Cria junctions MQL5\\Libraries → build Release (bridge/core/tester em modo compartilhado)')
     .option('--release <path>', 'Diretório Release explícito (default: build-win/<config>)')
