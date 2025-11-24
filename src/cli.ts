@@ -20,6 +20,7 @@ import { registerCopyCommands } from './commands/rawcopy.js';
 import { registerConfigCommands } from './commands/terminal.js';
 import { registerVerifyCommands } from './commands/verify.js';
 import { registerLogsCommands } from './commands/logs.js';
+import { registerDucascopyCommands } from './commands/ducascopy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -71,6 +72,7 @@ async function main() {
   registerVerifyCommands(program);
   registerConfigCommands(program);
   registerLogsCommands(program);
+  registerDucascopyCommands(program);
 
   program.addHelpText(
     'after',
