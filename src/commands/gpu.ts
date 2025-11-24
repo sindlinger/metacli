@@ -304,13 +304,19 @@ export function registerGpuCommands(program: Command) {
   gpu
     .command('build')
     .description('Build genérico de um projeto GPU (agnóstico), chamando scripts existentes')
-    .requiredOption('--project <name>', 'Nome da subpasta em GPU-dll_projects')
+    .option('--dir <path>', 'Pasta do projeto GPU (default: GPU-dll_projects/<nome>)')
+    .option('--name <name>', 'Nome do projeto em GPU-dll_projects (se preferir indicar só o nome)')
     .option('--script <file>', 'Script de build (default: build_cmd.bat)', 'build_cmd.bat')
     .option('--config <cfg>', 'Config (Release/Debug)', 'Release')
     .option('--arch <arch>', 'Arquitetura (x64)', 'x64')
     .option('--copy-to-libs', 'Copia o output (Release) para MQL5/Libraries do projeto ativo', false)
     .action(async (opts) => {
-      const projDir = path.join(GPU_PROJECTS_DIR, opts.project);
+      const projDir = opts.dir
+        ? normalizePath(opts.dir)
+        : path.join(GPU_PROJECTS_DIR, opts.name || '');
+      if (!projDir || projDir.endsWith(path.sep)) {
+        throw new Error('Informe --dir <path> ou --name <subpasta em GPU-dll_projects>.');
+      }
       if (!(await fsExtra.pathExists(projDir))) {
         throw new Error(`Projeto GPU não encontrado: ${projDir}`);
       }
