@@ -22,6 +22,24 @@ function isWin(): boolean {
   return process.platform === 'win32' || !!process.env.WSL_DISTRO_NAME;
 }
 
+async function findPowerShell(): Promise<string | null> {
+  const candidates = [
+    process.env.POWERSHELL_EXE,
+    'powershell.exe',
+    '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe',
+    'pwsh.exe',
+  ].filter(Boolean) as string[];
+  for (const c of candidates) {
+    try {
+      await execa(c, ['-NoProfile', '-Command', '$PSVersionTable.PSVersion'], { stdout: 'ignore', stderr: 'ignore' });
+      return c;
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
 async function toWindowsPath(p: string): Promise<string> {
   if (process.platform !== 'linux' || !process.env.WSL_DISTRO_NAME) return p;
   const { stdout } = await execa('wslpath', ['-w', p]);
@@ -127,7 +145,15 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
 
   console.log(`Instalando MT5 em ${targetWin} (modo automático)...`);
   const pathArg = `/path:"${targetWin}"`;
-  await execa(installerWin, ['/auto', pathArg], { stdio: 'inherit', windowsHide: true });
+  const ps = await findPowerShell();
+  if (ps) {
+    await execa(ps, ['-NoProfile', '-Command', `& "${installerWin}" /auto ${pathArg}`], {
+      stdio: 'inherit',
+      windowsHide: true,
+    });
+  } else {
+    await execa('cmd.exe', ['/C', `${installerWin} /auto ${pathArg}`], { stdio: 'inherit', windowsHide: true });
+  }
 
   // Evita reinstalar: se instalou em pasta temporária do instalador, mova/copie
   if (!(await isTerminalFolder(target))) {
