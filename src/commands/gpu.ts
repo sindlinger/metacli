@@ -320,15 +320,29 @@ export function registerGpuCommands(program: Command) {
       if (!(await fsExtra.pathExists(projDir))) {
         throw new Error(`Projeto GPU não encontrado: ${projDir}`);
       }
+      const projName = opts.name || path.basename(projDir);
       await runBuildScript(projDir, opts.script, { config: opts.config, arch: opts.arch });
+
+      const releaseDir = path.join(projDir, 'build-win', opts.config);
+      if (!(await fsExtra.pathExists(releaseDir))) {
+        throw new Error(`Release não encontrado em ${releaseDir}`);
+      }
+      const dlls = (await fsExtra.readdir(releaseDir)).filter(
+        (f) => f.toLowerCase().endsWith('.dll') || f.toLowerCase().endsWith('.exe')
+      );
+
+      const buildMirror = path.join(GPU_PROJECTS_DIR, `build_${projName}`);
+      await fsExtra.ensureDir(buildMirror);
+      for (const f of dlls) {
+        await fsExtra.copy(path.join(releaseDir, f), path.join(buildMirror, f), { overwrite: true });
+        console.log(chalk.green(`[gpu build] copiado ${f} -> ${buildMirror}`));
+      }
 
       if (opts.copyToLibs) {
         const info = await store.useOrThrow();
         if (!info.data_dir) throw new Error('data_dir do projeto ativo não configurado.');
-        const releaseDir = path.join(projDir, 'build-win', opts.config);
         const libsDest = path.join(info.data_dir, 'MQL5', 'Libraries');
         await fsExtra.ensureDir(libsDest);
-        const dlls = (await fsExtra.readdir(releaseDir)).filter((f) => f.toLowerCase().endsWith('.dll') || f.toLowerCase().endsWith('.exe'));
         for (const f of dlls) {
           await fsExtra.copy(path.join(releaseDir, f), path.join(libsDest, f), { overwrite: true });
           console.log(chalk.green(`[gpu build] copiado ${f} -> ${libsDest}`));
