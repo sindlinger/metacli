@@ -45,6 +45,11 @@ they use, and how all the pieces fit together in this **integrated** project.
 - Não sobrescrever `config/common.ini` manualmente; ele já contém credenciais e toggles corretos.
 - Para ajustar credenciais, edite `config/common.ini` (Login/Password/Server) e rode `mtcli init` de novo.
 
+### Princípio "1-2-3" (CLI curta, sem flags obrigatórias)
+- Todos os comandos devem funcionar sem flags obrigatórias: a IA/usuário pode chamar apenas o verbo base e o mtcli usa defaults do projeto (ou pergunta interativamente).
+- Sequência mental: (1) init prepara/abre terminal com o common.ini do projeto; (2) compile/build compila usando caminhos/target padrão; (3) run/chart/etc. executa usando defaults (símbolo/período/perfil) já salvos.
+- Parâmetros avançados seguem disponíveis, mas não são necessários para o uso básico.
+
 ---
 
 ## 1. Overall architecture
