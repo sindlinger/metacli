@@ -12,3 +12,10 @@ native-fft/build-wsl/
 native-fft/build-linux-gnu/
 mtcli-integrado.code-workspace
 .envrc
+# Ignore cloned terminals and demo state
+projects/terminals/
+ducascopy_state.json
+mtcli_projects.json
+# Ignore compiled MQ5 binaries and logs
+*.ex5
+*.log
