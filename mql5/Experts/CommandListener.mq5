@@ -169,6 +169,13 @@ double ToDoubleSafe(const string v) { return StrToDouble(v); }
 int ToIntSafe(const string v) { return (int)StrToInteger(v); }
 color ToColorSafe(const string v) { return (v=="") ? clrWhite : (color)StringToInteger(v); }
 
+bool EnsureSymbol(const string sym)
+{
+  if(SymbolSelect(sym, true)) return true;
+  Print("[listener] SymbolSelect failed for ", sym);
+  return false;
+}
+
 // Handlers ----------------------------------------------------------------
 bool H_Ping(string p[], string &m, string &d[]) { m="pong "+LISTENER_VERSION; return true; }
 
@@ -426,6 +433,7 @@ bool H_AttachEA(string p[], string &m, string &d[])
   string tpl = (ArraySize(p)>3 && p[3]!="") ? p[3] : "";
   string pstr = (ArraySize(p)>4)?p[4]:"";
   long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
+  EnsureSymbol(sym);
   string tplPath="MQL5\\Profiles\\Templates\\"+tpl;
   if(tpl!="" && FileIsExist(tplPath))
   {
@@ -445,18 +453,24 @@ bool H_AttachEA(string p[], string &m, string &d[])
 bool H_DetachEA(string p[], string &m, string &d[])
 {
   long cid=ChartID();
-  // tenta remover através de template default
+  bool removed=false;
+  // remove indicadores Experts\
+  int total=ChartIndicatorsTotal(cid,0);
+  for(int i=total-1;i>=0;i--)
+  {
+    string nm=ChartIndicatorName(cid,0,i);
+    if(StringFind(StringToLower(nm), "experts\\")>=0)
+    {
+      ChartIndicatorDelete(cid,0,i); removed=true;
+    }
+  }
+  if(removed){ m="ea detached"; return true; }
+  // aplica template default se existir
   if(FileIsExist("MQL5\\Profiles\\Templates\\Default.tpl"))
   {
     if(ChartApplyTemplate(cid, "Default.tpl")) { m="template default aplicado"; return true; }
   }
-  // fallback: fecha e reabre chart sem template
-  string sym=ChartSymbol(cid);
-  ENUM_TIMEFRAMES tf=(ENUM_TIMEFRAMES)ChartPeriod(cid);
-  ChartClose(cid);
-  long nc=ChartOpen(sym, tf);
-  if(nc==0){ m="detach fail"; return false; }
-  m="ea detached"; return true;
+  m="ea detach not supported"; return false;
 }
 
 bool H_ListCharts(string p[], string &m, string &d[])
@@ -654,6 +668,8 @@ bool H_TradeBuy(string p[], string &m, string &d[])
 {
   if(ArraySize(p)<2){ m="params"; return false; }
   string sym=p[0]; double vol=StrToDouble(p[1]);
+  if(!EnsureSymbol(sym)) { m="symbol"; return false; }
+  if(vol<=0){ m="volume"; return false; }
   double sl = (ArraySize(p)>2 && p[2]!="") ? StrToDouble(p[2]) : 0;
   double tp = (ArraySize(p)>3 && p[3]!="") ? StrToDouble(p[3]) : 0;
   string comment=(ArraySize(p)>4)?p[4]:"";
@@ -665,6 +681,8 @@ bool H_TradeSell(string p[], string &m, string &d[])
 {
   if(ArraySize(p)<2){ m="params"; return false; }
   string sym=p[0]; double vol=StrToDouble(p[1]);
+  if(!EnsureSymbol(sym)) { m="symbol"; return false; }
+  if(vol<=0){ m="volume"; return false; }
   double sl = (ArraySize(p)>2 && p[2]!="") ? StrToDouble(p[2]) : 0;
   double tp = (ArraySize(p)>3 && p[3]!="") ? StrToDouble(p[3]) : 0;
   string comment=(ArraySize(p)>4)?p[4]:"";
