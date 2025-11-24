@@ -16,7 +16,19 @@ CTrade trade;
 
 string g_files_dir;
 int    g_timer_sec = 1;
-string LISTENER_VERSION = "1.0.1";
+string LISTENER_VERSION = "1.0.2";
+
+// Armazena último attach para inputs simples
+string g_lastIndName = "";
+string g_lastIndParams = ""; // k=v;k2=v2
+string g_lastIndSymbol = "";
+string g_lastIndTf = "";
+int    g_lastIndSub = 1;
+
+string g_lastEAName = "";
+string g_lastEAParams = "";
+string g_lastEASymbol = "";
+string g_lastEATf = "";
 
 // Utilidades --------------------------------------------------------------
 string PayloadGet(const string payload, const string key)
@@ -162,6 +174,7 @@ bool H_AttachInd(string p[], string &m, string &d[])
   int handle=iCustom(sym, tf, name, inputs);
   if(handle==INVALID_HANDLE){ m="iCustom fail"; return false; }
   if(!ChartIndicatorAdd(cid, sub-1, handle)){ m="ChartIndicatorAdd"; return false; }
+  g_lastIndName=name; g_lastIndParams=pstr; g_lastIndSymbol=sym; g_lastIndTf=tfstr; g_lastIndSub=sub;
   m="indicator attached"; return true;
 }
 
@@ -228,7 +241,7 @@ bool H_AttachEA(string p[], string &m, string &d[])
   if(tpl!="" && FileIsExist(tplPath))
   {
     if(!ChartApplyTemplate(cid, tpl)) { m="ChartApplyTemplate"; return false; }
-    // params extras ignorados aqui; template já deve conter inputs desejados
+    g_lastEAName=expert; g_lastEAParams=pstr; g_lastEASymbol=sym; g_lastEATf=p[1];
     m="template applied (EA)"; return true;
   }
   // Se não houver template, tenta reattach via iCustom de Experts\expert com params simples string
@@ -238,17 +251,25 @@ bool H_AttachEA(string p[], string &m, string &d[])
   int handle=iCustom(sym, tf, "Experts\\"+expert, inputs);
   if(handle==INVALID_HANDLE){ m="iCustom EA fail"; return false; }
   if(!ChartIndicatorAdd(cid, 0, handle)) { m="attach fail"; return false; }
+  g_lastEAName=expert; g_lastEAParams=pstr; g_lastEASymbol=sym; g_lastEATf=p[1];
   m="ea attached"; return true;
 }
 
 bool H_DetachEA(string p[], string &m, string &d[])
 {
-  // Tenta aplicar template Default se existir
+  long cid=ChartID();
+  // tenta remover através de template default
   if(FileIsExist("MQL5\\Profiles\\Templates\\Default.tpl"))
   {
-    if(ChartApplyTemplate(ChartID(), "Default.tpl")) { m="template default aplicado"; return true; }
+    if(ChartApplyTemplate(cid, "Default.tpl")) { m="template default aplicado"; return true; }
   }
-  m="ea detach not supported"; return false;
+  // fallback: fecha e reabre chart sem template
+  string sym=ChartSymbol(cid);
+  ENUM_TIMEFRAMES tf=(ENUM_TIMEFRAMES)ChartPeriod(cid);
+  ChartClose(cid);
+  long nc=ChartOpen(sym, tf);
+  if(nc==0){ m="detach fail"; return false; }
+  m="ea detached"; return true;
 }
 
 bool H_ListCharts(string p[], string &m, string &d[])
@@ -271,12 +292,51 @@ bool H_ListCharts(string p[], string &m, string &d[])
 
 bool H_ListInputs(string p[], string &m, string &d[])
 {
-  m="not_supported"; return true;
+  string srcParams = (g_lastIndParams!="") ? g_lastIndParams : g_lastEAParams;
+  if(srcParams=="") { m="none"; return true; }
+  string kvs[]; int n=StringSplit(srcParams, ';', kvs);
+  for(int i=0;i<n;i++)
+  {
+    if(kvs[i]=="") continue;
+    ArrayResize(d,ArraySize(d)+1); d[ArraySize(d)-1]=kvs[i];
+  }
+  m=StringFormat("inputs=%d", ArraySize(d));
+  return true;
 }
 
 bool H_SetInput(string p[], string &m, string &d[])
 {
-  m="not_supported"; return true;
+  if(ArraySize(p)<2){ m="params"; return false; }
+  string key=p[0]; string val=p[1];
+  bool isInd = (g_lastIndParams!="");
+  string paramsStr = isInd ? g_lastIndParams : g_lastEAParams;
+  string out[]; int n=StringSplit(paramsStr,';',out);
+  bool found=false;
+  for(int i=0;i<n;i++)
+  {
+    if(out[i]=="") continue;
+    string kv[]; int c=StringSplit(out[i],'=',kv);
+    if(c==2 && kv[0]==key){ out[i]=key+"="+val; found=true; break; }
+  }
+  if(!found)
+  {
+    ArrayResize(out,n+1); out[n]=key+"="+val; n++;
+  }
+  paramsStr = Join(out, ";");
+  if(isInd)
+  {
+    g_lastIndParams=paramsStr;
+    string paramsNew[]; ArrayResize(paramsNew,5); // sym tf name sub params
+    paramsNew[0]=g_lastIndSymbol; paramsNew[1]=g_lastIndTf; paramsNew[2]=g_lastIndName; paramsNew[3]=IntegerToString(g_lastIndSub); paramsNew[4]=paramsStr;
+    return H_AttachInd(paramsNew, m, d);
+  }
+  else
+  {
+    g_lastEAParams=paramsStr;
+    string paramsNew[]; ArrayResize(paramsNew,5);
+    paramsNew[0]=g_lastEASymbol; paramsNew[1]=g_lastEATf; paramsNew[2]=g_lastEAName; paramsNew[3]=""; paramsNew[4]=paramsStr;
+    return H_AttachEA(paramsNew, m, d);
+  }
 }
 
 bool H_SnapshotSave(string p[], string &m, string &d[])
