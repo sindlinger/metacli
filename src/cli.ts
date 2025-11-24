@@ -6,10 +6,8 @@ import chalk from 'chalk';
 import { registerInitCommand } from './commands/init.js';
 import { registerChartCommands, registerIndicatorCommands, registerExpertCommands } from './commands/chart.js';
 import { registerTesterCommands } from './commands/tester.js';
-import { registerEditorCommands } from './commands/editor.js';
 import { registerDllCommands } from './commands/dll.js';
 import { registerUtilsCommands } from './commands/utils.js';
-import { registerQuickCommands } from './commands/quick.js';
 import { registerGlobalsCommands } from './commands/globals.js';
 import { registerEventsCommands } from './commands/events.js';
 import { registerObjectsCommands } from './commands/objects.js';
@@ -34,7 +32,6 @@ async function main() {
     .showHelpAfterError();
 
   registerInitCommand(program);
-  registerQuickCommands(program);
   registerGlobalsCommands(program);
   registerEventsCommands(program);
   registerObjectsCommands(program);
@@ -49,7 +46,6 @@ async function main() {
   registerIndicatorCommands(program);
   registerExpertCommands(program);
   registerTesterCommands(program);
-  registerEditorCommands(program);
   registerDllCommands(program);
   registerUtilsCommands(program);
   registerConfigCommands(program);
