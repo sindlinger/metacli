@@ -18,6 +18,7 @@ import { registerSnapshotCommands } from './commands/snapshot.js';
 import { registerTradeCommands } from './commands/trade.js';
 import { registerCopyCommands } from './commands/rawcopy.js';
 import { registerConfigCommands } from './commands/terminal.js';
+import { registerVerifyCommands } from './commands/verify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -48,6 +49,7 @@ async function main() {
   registerTesterCommands(program);
   registerGpuCommands(program);
   registerUtilsCommands(program);
+  registerVerifyCommands(program);
   registerConfigCommands(program);
 
   program.addHelpText(
