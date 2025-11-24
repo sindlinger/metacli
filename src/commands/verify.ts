@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import { ProjectStore } from '../config/projectStore.js';
 import { normalizePath } from '../utils/paths.js';
 import { commonIniPath } from './terminal.js';
+import fsPromises from 'fs/promises';
 
 const store = new ProjectStore();
 
@@ -43,6 +44,7 @@ export function registerVerifyCommands(program: Command) {
     .command('verify')
     .description('Verifica estrutura de pastas/arquivos essenciais do MT5 (data_dir)')
     .option('--project <id>', 'Projeto alvo')
+    .option('--show', 'Exibe o conteúdo de arquivos críticos (common.ini/metaeditor.ini/terminal.ini/origin.txt)', false)
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       if (!info.data_dir) throw new Error('data_dir não configurado.');
@@ -86,6 +88,24 @@ export function registerVerifyCommands(program: Command) {
         console.log(chalk.green('\nEstrutura OK.'));
       } else {
         console.log(chalk.yellow(`\nItens ausentes: ${missing}.`));
+      }
+
+      if (opts.show) {
+        const filesToShow = [
+          ['origin.txt', path.join(base, 'origin.txt')],
+          ['common.ini', commonIniPath(base)],
+          ['metaeditor.ini', path.join(base, 'Config', 'metaeditor.ini')],
+          ['terminal.ini', path.join(base, 'Config', 'terminal.ini')],
+        ];
+        for (const [label, file] of filesToShow) {
+          if (!(await fs.pathExists(file))) {
+            console.log(chalk.red(`[show] ${label} ausente (${file})`));
+            continue;
+          }
+          console.log(chalk.cyan(`\n===== ${label} (${file}) =====`));
+          const content = await fsPromises.readFile(file, 'utf8');
+          console.log(content);
+        }
       }
     });
 }
