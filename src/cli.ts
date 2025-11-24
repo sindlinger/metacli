@@ -32,6 +32,25 @@ async function main() {
     .description('CLI modular para automatizar tarefas do MetaTrader 5 (CommandListenerEA)')
     .version(packageJson.version || '0.0.0')
     .showHelpAfterError();
+  program.configureHelp({ sortSubcommands: false });
+
+  program.addHelpText(
+    'beforeAll',
+    '\n' +
+      chalk.bold.cyan('Comandos mais usados (atalhos rápidos)') +
+      '\n  ' +
+      [
+        `${chalk.green('init')}`,
+        `${chalk.green('compile')}`,
+        `${chalk.green('run')}`,
+        `${chalk.green('chart')} (${chalk.gray('capture/list/objects')})`,
+        `${chalk.green('logs')}`,
+        `${chalk.green('verify')}`,
+        `${chalk.green('config')} (${chalk.gray('paths/ls/exists')})`,
+        `${chalk.green('tester')}`,
+      ].join('  ') +
+      '\n'
+  );
 
   registerInitCommand(program);
   registerGlobalsCommands(program);
@@ -55,16 +74,16 @@ async function main() {
 
   program.addHelpText(
     'after',
-    '\nAtalhos rápidos:\n' +
-      '  mtcli init\n' +
-      '  mtcli compile -i \\Indicators\\Examples\\ZigZag\n' +
-      '  mtcli run -i Examples\\ZigZag\n' +
-      '  mtcli run -e Moving_Average -v\n' +
-      '  mtcli chart capture\n' +
-      '  mtcli globals list\n' +
-      '  mtcli events tail --errors --follow\n' +
-      '  mtcli watch --file Foo.mq5 --indicator Foo\n' +
-      '  mtcli tester quick --expert MyEA --symbol EURUSD --period H1\n'
+    '\n' +
+      chalk.bold('Sugestões rápidas:') +
+      '\n  mtcli init' +
+      '\n  mtcli compile -i \\Indicators\\Examples\\ZigZag' +
+      '\n  mtcli run -i Examples\\ZigZag' +
+      '\n  mtcli run -e Moving_Average -v' +
+      '\n  mtcli chart capture' +
+      '\n  mtcli logs --type terminal' +
+      '\n  mtcli verify' +
+      '\n  mtcli tester quick --expert MyEA --symbol EURUSD --period H1\n'
   );
 
   try {
