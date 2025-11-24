@@ -4,12 +4,7 @@
 #property strict
 
 // CommandListener: lê cmd_*.txt em MQL5\Files e grava resp_*.txt
-// Comandos suportados: PING, DEBUG_MSG, DETACH_ALL, OPEN_CHART,
-// ATTACH_IND_FULL, DETACH_IND_FULL, IND_TOTAL, IND_NAME, IND_HANDLE,
-// ATTACH_EA_FULL (via template), DETACH_EA_FULL (stub), LIST_CHARTS,
-// LIST_INPUTS (stub), SET_INPUT (stub), SNAPSHOT_SAVE/APPLY/LIST (stub),
-// OBJ_LIST/OBJ_DELETE/OBJ_DELETE_PREFIX/OBJ_MOVE/OBJ_CREATE,
-// TRADE_BUY/SELL/CLOSE_ALL/LIST (stubs retornando NOT_IMPLEMENTED).
+// Versão 1.0.6 — cobre comandos do mtcli (chart/tpl/ind/ea/obj/trade/globals/tests)
 
 #include <Trade\Trade.mqh>
 CTrade trade;
