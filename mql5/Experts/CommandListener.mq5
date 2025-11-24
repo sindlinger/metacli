@@ -16,7 +16,7 @@ CTrade trade;
 
 string g_files_dir;
 int    g_timer_sec = 1;
-string LISTENER_VERSION = "1.0.5";
+string LISTENER_VERSION = "1.0.6";
 
 // Armazena último attach para inputs simples
 string g_lastIndName = "";
@@ -179,6 +179,66 @@ bool H_Ping(string p[], string &m, string &d[]) { m="pong "+LISTENER_VERSION; re
 
 bool H_Debug(string p[], string &m, string &d[]) { if(ArraySize(p)>0) Print(p[0]); m="printed"; return true; }
 
+bool H_GlobalSet(string p[], string &m, string &d[])
+{
+  if(ArraySize(p)<2){ m="params"; return false; }
+  string name=p[0]; double val=StrToDouble(p[1]);
+  bool ok = GlobalVariableSet(name, val) > 0;
+  m = ok?"set":"fail"; return ok;
+}
+
+bool H_GlobalGet(string p[], string &m, string &d[])
+{
+  if(ArraySize(p)<1){ m="params"; return false; }
+  string name=p[0];
+  if(!GlobalVariableCheck(name)){ m="not_found"; return false; }
+  double v = GlobalVariableGet(name);
+  ArrayResize(d,1); d[0]=DoubleToString(v,8);
+  m="ok"; return true;
+}
+
+bool H_GlobalDel(string p[], string &m, string &d[])
+{
+  if(ArraySize(p)<1){ m="params"; return false; }
+  m = GlobalVariableDel(p[0]) ? "deleted" : "not_found";
+  return (m=="deleted");
+}
+
+bool H_GlobalDelPrefix(string p[], string &m, string &d[])
+{
+  if(ArraySize(p)<1){ m="params"; return false; }
+  string prefix=p[0];
+  int total=GlobalVariablesTotal();
+  int removed=0;
+  for(int i=0;i<total;i++)
+  {
+    string nm=GlobalVariableName(i);
+    if(StringFind(nm, prefix)==0)
+    {
+      if(GlobalVariableDel(nm)) removed++;
+    }
+  }
+  m=StringFormat("removed=%d", removed); return true;
+}
+
+bool H_GlobalList(string p[], string &m, string &d[])
+{
+  string prefix = (ArraySize(p)>0)?p[0]:"";
+  int limit = (ArraySize(p)>1)?(int)StrToInteger(p[1]):0;
+  int total=GlobalVariablesTotal();
+  int count=0;
+  for(int i=0;i<total;i++)
+  {
+    string nm=GlobalVariableName(i);
+    if(prefix!="" && StringFind(nm,prefix)!=0) continue;
+    double v=GlobalVariableGet(nm);
+    ArrayResize(d,ArraySize(d)+1); d[ArraySize(d)-1]=nm+"="+DoubleToString(v,8);
+    count++;
+    if(limit>0 && count>=limit) break;
+  }
+  m=StringFormat("vars=%d", count); return true;
+}
+
 bool H_OpenChart(string p[], string &m, string &d[])
 {
   if(ArraySize(p)<2){ m="params"; return false; }
@@ -260,6 +320,110 @@ bool H_DetachAll(string p[], string &m, string &d[])
   m="indicators removed"; return true;
 }
 
+bool H_CloseChart(string p[], string &m, string &d[])
+{
+  if(ArraySize(p)<2){ m="params"; return false; }
+  string sym=p[0]; ENUM_TIMEFRAMES tf=TfFromString(p[1]);
+  long id=ChartFirst(); int closed=0;
+  while(id>=0)
+  {
+    if(ChartSymbol(id)==sym && ChartPeriod(id)==tf)
+    {
+      ChartClose(id); closed++;
+    }
+    id=ChartNext(id);
+  }
+  m=StringFormat("closed=%d", closed); return true;
+}
+
+bool H_CloseAll(string p[], string &m, string &d[])
+{
+  long id=ChartFirst(); int closed=0;
+  while(id>=0)
+  {
+    long next=ChartNext(id);
+    ChartClose(id); closed++;
+    id=next;
+  }
+  m=StringFormat("closed=%d", closed); return true;
+}
+
+bool H_ApplyTpl(string p[], string &m, string &d[])
+{
+  if(ArraySize(p)<3){ m="params"; return false; }
+  string sym=p[0]; ENUM_TIMEFRAMES tf=TfFromString(p[1]); string tpl=p[2];
+  long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
+  if(!ChartApplyTemplate(cid, tpl)) { m="apply fail"; return false; }
+  m="template applied"; return true;
+}
+
+bool H_SaveTpl(string p[], string &m, string &d[])
+{
+  if(ArraySize(p)<3){ m="params"; return false; }
+  string sym=p[0]; ENUM_TIMEFRAMES tf=TfFromString(p[1]); string tpl=p[2];
+  long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
+  if(!ChartSaveTemplate(cid, tpl)) { m="save fail"; return false; }
+  m="template saved"; return true;
+}
+
+bool H_RedrawChart(string p[], string &m, string &d[])
+{
+  long cid = (ArraySize(p)>0 && p[0]!="") ? (long)StrToInteger(p[0]) : ChartID();
+  ChartRedraw(cid);
+  m="redrawn"; return true;
+}
+
+bool H_WindowFind(string p[], string &m, string &d[])
+{
+  if(ArraySize(p)<3){ m="params"; return false; }
+  string sym=p[0]; ENUM_TIMEFRAMES tf=TfFromString(p[1]); string name=p[2];
+  long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
+  int sub=ChartWindowFind(cid, name);
+  ArrayResize(d,1); d[0]=IntegerToString(sub);
+  m="ok"; return true;
+}
+
+bool H_DropInfo(string p[], string &m, string &d[])
+{
+  // Sem eventos; devolve info do chart atual
+  long cid=ChartID();
+  string sym=ChartSymbol(cid);
+  ENUM_TIMEFRAMES tf=(ENUM_TIMEFRAMES)ChartPeriod(cid);
+  ArrayResize(d,1); d[0]=StringFormat("chart=%s %s", sym, EnumToString(tf));
+  m="ok"; return true;
+}
+
+bool H_Screenshot(string p[], string &m, string &d[])
+{
+  if(ArraySize(p)<3){ m="params"; return false; }
+  string sym=p[0]; ENUM_TIMEFRAMES tf=TfFromString(p[1]); string file=p[2];
+  int width = (ArraySize(p)>3) ? (int)StrToInteger(p[3]) : 0;
+  int height= (ArraySize(p)>4) ? (int)StrToInteger(p[4]) : 0;
+  long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
+  if(!ChartScreenShot(cid, file, width, height)) { m="fail"; return false; }
+  m="shot"; return true;
+}
+
+bool H_ScreenshotSweep(string p[], string &m, string &d[])
+{
+  // params: symbol, period, folder, base, steps, shift, align, width, height, fmt, delay
+  if(ArraySize(p)<11){ m="params"; return false; }
+  string sym=p[0]; ENUM_TIMEFRAMES tf=TfFromString(p[1]); string folder=p[2]; string base=p[3];
+  int steps=(int)StrToInteger(p[4]); int shift=(int)StrToInteger(p[5]); string align=p[6];
+  int width=(int)StrToInteger(p[7]); int height=(int)StrToInteger(p[8]); string fmt=p[9]; int delay=(int)StrToInteger(p[10]);
+  long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
+  bool left = (StringToLower(align)=="left");
+  for(int i=1;i<=steps;i++)
+  {
+    if(left) ChartNavigate(cid, CHART_POSITION_FIRST, shift);
+    else ChartNavigate(cid, CHART_CURRENT_POS, -shift);
+    string fname=folder+"\\"+base+"-"+IntegerToString(i,3)+"."+fmt;
+    ChartScreenShot(cid, fname, width, height);
+    Sleep(delay);
+  }
+  m="sweep"; return true;
+}
+
 bool H_AttachEA(string p[], string &m, string &d[])
 {
   if(ArraySize(p)<3){ m="params"; return false; }
@@ -338,6 +502,7 @@ bool H_SetInput(string p[], string &m, string &d[])
   string key=p[0]; string val=p[1];
   bool isInd = (g_lastIndParams!="");
   string paramsStr = isInd ? g_lastIndParams : g_lastEAParams;
+  if(paramsStr==""){ m="no_context"; return false; }
   string out[]; int n=StringSplit(paramsStr,';',out);
   bool found=false;
   for(int i=0;i<n;i++)
@@ -550,7 +715,21 @@ bool Dispatch(string type, string params[], string &msg, string &data[])
 {
   if(type=="PING") return H_Ping(params,msg,data);
   if(type=="DEBUG_MSG") return H_Debug(params,msg,data);
+  if(type=="GLOBAL_SET") return H_GlobalSet(params,msg,data);
+  if(type=="GLOBAL_GET") return H_GlobalGet(params,msg,data);
+  if(type=="GLOBAL_DEL") return H_GlobalDel(params,msg,data);
+  if(type=="GLOBAL_DEL_PREFIX") return H_GlobalDelPrefix(params,msg,data);
+  if(type=="GLOBAL_LIST") return H_GlobalList(params,msg,data);
   if(type=="DETACH_ALL") return H_DetachAll(params,msg,data);
+  if(type=="CLOSE_CHART") return H_CloseChart(params,msg,data);
+  if(type=="CLOSE_ALL") return H_CloseAll(params,msg,data);
+  if(type=="APPLY_TPL") return H_ApplyTpl(params,msg,data);
+  if(type=="SAVE_TPL") return H_SaveTpl(params,msg,data);
+  if(type=="REDRAW_CHART") return H_RedrawChart(params,msg,data);
+  if(type=="WINDOW_FIND") return H_WindowFind(params,msg,data);
+  if(type=="DROP_INFO") return H_DropInfo(params,msg,data);
+  if(type=="SCREENSHOT") return H_Screenshot(params,msg,data);
+  if(type=="SCREENSHOT_SWEEP") return H_ScreenshotSweep(params,msg,data);
   if(type=="OPEN_CHART") return H_OpenChart(params,msg,data);
   if(type=="ATTACH_IND_FULL") return H_AttachInd(params,msg,data);
   if(type=="DETACH_IND_FULL") return H_DetachInd(params,msg,data);
