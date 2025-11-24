@@ -10,3 +10,5 @@ native-fft/build
 native-fft/build-win/
 native-fft/build-wsl/
 native-fft/build-linux-gnu/
+mtcli-integrado.code-workspace
+.envrc
