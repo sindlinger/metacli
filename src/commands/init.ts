@@ -64,7 +64,13 @@ export function registerInitCommand(program: Command) {
         console.log(chalk.gray(`[init] Gerado id automático: ${project}`));
       }
 
-      let info = file.projects[project];
+      const existing = file.projects[project];
+      if (existing) {
+        console.log(chalk.yellow(`[init] Projeto "${project}" já está criado. Use "mtcli project reset --id ${project}" para refazer na mesma pasta.`));
+        return;
+      }
+
+      let info = existing;
       if (!info) {
         const confirm = await promptYesNo(`Instalar um novo terminal MT5 dedicado para '${project}'?`, true);
         if (!confirm) throw new Error('Instalação cancelada pelo usuário.');
@@ -84,19 +90,6 @@ export function registerInitCommand(program: Command) {
         await deployFactoryTemplates(install.dataDir);
         await deployFactoryConfig(install.dataDir);
         await ensureAccountInIni(install.dataDir);
-      } else {
-        // atualiza defaults se enviados
-        const defaults = buildDefaults(opts);
-        info = await store.setProject(project, { ...info, defaults }, true);
-        console.log(chalk.green(`[init] Projeto ${project} carregado.`));
-        await deployCommandListener({
-          terminal: info.terminal || '',
-          metaeditor: info.metaeditor || '',
-          dataDir: info.data_dir || '',
-        });
-        await deployFactoryTemplates(info.data_dir || '');
-        await deployFactoryConfig(info.data_dir || '');
-        await ensureAccountInIni(info.data_dir || '');
       }
 
       await restartListenerInstance({ project: info.project, profile: info.defaults?.profile ?? undefined });
