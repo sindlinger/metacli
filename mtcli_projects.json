@@ -1,21 +1,3 @@
 {
-  "last_project": "project-20251124-125338-klj1",
-  "projects": {
-    "project-20251124-125338-klj1": {
-      "project": "project-20251124-125338-klj1",
-      "libs": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1/MQL5/Libraries",
-      "terminal": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1/terminal64.exe",
-      "metaeditor": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1/MetaEditor64.exe",
-      "data_dir": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/project-20251124-125338-klj1",
-      "defaults": {
-        "symbol": "EURUSD",
-        "period": "H1",
-        "subwindow": 1,
-        "profile": "Default",
-        "portable": false
-      },
-      "updated_at": "2025-11-24T23:30:41.452Z",
-      "created_at": "2025-11-24T15:53:53.962Z"
-    }
-  }
+  "projects": {}
 }

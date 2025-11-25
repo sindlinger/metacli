@@ -67,30 +67,45 @@ async function isTerminalFolder(dir: string): Promise<boolean> {
   return fs.pathExists(path.join(dir, 'terminal64.exe'));
 }
 
+function normalizeWinPath(p: string): string {
+  return p.replace(/[\\/]+/g, '\\').replace(/\\+$/g, '').toLowerCase();
+}
+
 async function findDataDirByOrigin(installRoot: string): Promise<string | null> {
   const appData = await getWinAppData();
   const terminalsRoot = path.join(appData, 'MetaQuotes', 'Terminal');
   if (!(await fs.pathExists(terminalsRoot))) return null;
   const entries = await fs.readdir(terminalsRoot);
-  const installWin = await toWindowsPath(installRoot);
+  const installWin = normalizeWinPath(await toWindowsPath(installRoot));
   for (const e of entries) {
     const originPath = path.join(terminalsRoot, e, 'origin.txt');
     try {
-      const content = await fs.readFile(originPath, 'utf8');
-      if (content.trim() === installWin) {
+      const content = normalizeWinPath((await fs.readFile(originPath, 'utf8')).trim());
+      if (content === installWin) {
         return path.join(terminalsRoot, e);
       }
     } catch {
       // ignore
     }
   }
-  return null;
+  // fallback: usa o diretório mais recente se não encontrar origin
+  let newest: { dir: string; mtime: number } | null = null;
+  for (const e of entries) {
+    const dir = path.join(terminalsRoot, e);
+    const stat = await fs.stat(dir).catch(() => null);
+    if (!stat || !stat.isDirectory()) continue;
+    if (!newest || stat.mtimeMs > newest.mtime) {
+      newest = { dir, mtime: stat.mtimeMs };
+    }
+  }
+  return newest?.dir || null;
 }
 
 async function touchDataDirByMetaEditor(installRoot: string): Promise<void> {
   const meta = path.join(installRoot, METAEDITOR_EXE);
   const metaWin = await toWindowsPath(meta);
   await execa('cmd.exe', ['/C', `${metaWin} /version`], { timeout: 30000, windowsHide: true }).catch(() => {});
+  await new Promise((res) => setTimeout(res, 2000));
 }
 
 
