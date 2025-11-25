@@ -3,7 +3,6 @@ import fs from 'fs-extra';
 import https from 'https';
 import { pipeline } from 'stream/promises';
 import { execa } from 'execa';
-import chalk from 'chalk';
 import { repoRoot } from '../config/projectStore.js';
 import { promptYesNo } from './prompt.js';
 
@@ -63,30 +62,6 @@ async function getWinAppData(): Promise<string> {
   if (process.env[APPDATA_ENV]) return process.env[APPDATA_ENV] as string;
   const { stdout } = await execa('cmd.exe', ['/C', 'echo', `%${APPDATA_ENV}%`]);
   return stdout.trim();
-}
-
-async function findLatestSystemTerminal(): Promise<string | null> {
-  const candidates = isWin() && process.env.WSL_DISTRO_NAME
-    ? ['/mnt/c/Program Files', '/mnt/c/Program Files (x86)', '/mnt/c/ProgramData']
-    : ['C:/Program Files', 'C:/Program Files (x86)', 'C:/ProgramData'];
-  let newest: { dir: string; mtime: number } | null = null;
-  for (const base of candidates) {
-    const root = path.resolve(base, '.');
-    const exists = await fs.pathExists(root).catch(() => false);
-    if (!exists) continue;
-    const entries = await fs.readdir(root).catch(() => []);
-    for (const e of entries) {
-      const dir = path.join(root, e);
-      const exe = path.join(dir, TERMINAL_EXE);
-      const stat = await fs.stat(exe).catch(() => null);
-      if (stat && stat.isFile()) {
-        if (!newest || stat.mtimeMs > newest.mtime) {
-          newest = { dir, mtime: stat.mtimeMs };
-        }
-      }
-    }
-  }
-  return newest?.dir || null;
 }
 
 async function findNewestDataDir(): Promise<string | null> {
@@ -303,15 +278,6 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
   for (let i = 0; i < 180; i += 1) {
     if (await isTerminalFolder(target)) break;
     await new Promise((r) => setTimeout(r, 1000));
-  }
-
-  // Se o instalador ignorou o /path, copia a instalação mais recente do sistema para o target
-  if (!(await isTerminalFolder(target))) {
-    const fallback = await findLatestSystemTerminal();
-    if (fallback && (await isTerminalFolder(fallback))) {
-      console.log(chalk.gray(`[install] Instalador ignorou /path. Copiando de ${fallback} para ${targetWin}`));
-      await fs.copy(fallback, target, { overwrite: true });
-    }
   }
 
   if (!(await isTerminalFolder(target))) {
