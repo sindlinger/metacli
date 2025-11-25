@@ -66,11 +66,9 @@ async function getWinAppData(): Promise<string> {
 }
 
 async function findLatestSystemTerminal(): Promise<string | null> {
-  const candidates = [
-    'C:/Program Files',
-    'C:/Program Files (x86)',
-    'C:/ProgramData',
-  ];
+  const candidates = isWin() && process.env.WSL_DISTRO_NAME
+    ? ['/mnt/c/Program Files', '/mnt/c/Program Files (x86)', '/mnt/c/ProgramData']
+    : ['C:/Program Files', 'C:/Program Files (x86)', 'C:/ProgramData'];
   let newest: { dir: string; mtime: number } | null = null;
   for (const base of candidates) {
     const root = path.resolve(base, '.');
