@@ -91,6 +91,29 @@ async function findLatestSystemTerminal(): Promise<string | null> {
   return newest?.dir || null;
 }
 
+async function findNewestDataDir(): Promise<string | null> {
+  const appData = await getWinAppData();
+  const terminalsRoot = path.join(appData, 'MetaQuotes', 'Terminal');
+  if (!(await fs.pathExists(terminalsRoot))) return null;
+  const entries = await fs.readdir(terminalsRoot).catch(() => []);
+  let newest: { dir: string; mtime: number } | null = null;
+  for (const e of entries) {
+    const dir = path.join(terminalsRoot, e);
+    const stat = await fs.stat(dir).catch(() => null);
+    if (!stat || !stat.isDirectory()) continue;
+    if (!newest || stat.mtimeMs > newest.mtime) {
+      newest = { dir, mtime: stat.mtimeMs };
+    }
+  }
+  return newest?.dir || null;
+}
+
+async function rewriteOrigin(dataDir: string, installRoot: string): Promise<void> {
+  const originFile = path.join(dataDir, 'origin.txt');
+  const win = normalizeWinPath(await toWindowsPath(installRoot));
+  await fs.writeFile(originFile, win, 'utf8');
+}
+
 async function isTerminalFolder(dir: string): Promise<boolean> {
   return fs.pathExists(path.join(dir, 'terminal64.exe'));
 }
@@ -131,9 +154,24 @@ async function findDataDirByOrigin(installRoot: string): Promise<string | null> 
 
 async function waitForDataDir(installRoot: string, timeoutMs = 180000): Promise<string | null> {
   const started = Date.now();
+  const winTarget = normalizeWinPath(await toWindowsPath(installRoot));
   while (Date.now() - started < timeoutMs) {
     const found = await findDataDirByOrigin(installRoot);
     if (found) return found;
+    // Se não houver correspondência, tenta reescrever o origin da pasta mais recente para o novo caminho
+    const newest = await findNewestDataDir();
+    if (newest) {
+      try {
+        const content = normalizeWinPath((await fs.readFile(path.join(newest, 'origin.txt'), 'utf8')).trim());
+        if (content !== winTarget) {
+          await rewriteOrigin(newest, installRoot);
+          return newest;
+        }
+      } catch {
+        await rewriteOrigin(newest, installRoot);
+        return newest;
+      }
+    }
     await new Promise((r) => setTimeout(r, 1000));
   }
   return null;
@@ -267,6 +305,15 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
   for (let i = 0; i < 180; i += 1) {
     if (await isTerminalFolder(target)) break;
     await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  // Se o instalador ignorou o /path, copia a instalação mais recente do sistema para o target
+  if (!(await isTerminalFolder(target))) {
+    const fallback = await findLatestSystemTerminal();
+    if (fallback && (await isTerminalFolder(fallback))) {
+      console.log(chalk.gray(`[install] Instalador ignorou /path. Copiando de ${fallback} para ${targetWin}`));
+      await fs.copy(fallback, target, { overwrite: true });
+    }
   }
 
   if (!(await isTerminalFolder(target))) {
