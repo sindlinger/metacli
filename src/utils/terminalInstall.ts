@@ -126,31 +126,10 @@ async function findDataDirByOrigin(installRoot: string): Promise<string | null> 
 }
 
 async function waitForDataDir(installRoot: string, timeoutMs = 30000): Promise<string | null> {
-  const winTarget = normalizeWinPath(await toWindowsPath(installRoot));
-
-  // tentativa imediata
-  const immediate = await findDataDirByOrigin(installRoot);
-  if (immediate) return immediate;
-
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const found = await findDataDirByOrigin(installRoot);
+    const found = await findNewestDataDir();
     if (found) return found;
-
-    const newest = await findNewestDataDir();
-    if (newest) {
-      try {
-        const content = normalizeWinPath((await fs.readFile(path.join(newest, 'origin.txt'), 'utf8')).trim());
-        if (content !== winTarget) {
-          await rewriteOrigin(newest, installRoot);
-          return newest;
-        }
-      } catch {
-        await rewriteOrigin(newest, installRoot);
-        return newest;
-      }
-    }
-
     const elapsed = Date.now() - started;
     if (elapsed > 0 && elapsed % 5000 < 1000) {
       const sec = Math.floor(elapsed / 1000);
