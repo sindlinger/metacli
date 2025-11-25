@@ -283,6 +283,9 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
 
   for (let i = 0; i < 180; i += 1) {
     if (await isTerminalFolder(target)) break;
+    if (i % 5 === 0 && i > 0) {
+      console.log(`[install] aguardando instalador concluir... ${i}s`);
+    }
     await new Promise((r) => setTimeout(r, 1000));
   }
 
