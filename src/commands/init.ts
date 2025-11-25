@@ -4,7 +4,7 @@ import { DEFAULT_AGENT_PROJECT_ID, DEFAULT_AGENT_DEFAULTS } from '../config/agen
 import { ProjectDefaults, ProjectStore } from '../config/projectStore.js';
 import { restartListenerInstance } from './listener.js';
 import { logProjectSummary } from '../utils/projectSummary.js';
-import { promptText } from '../utils/prompt.js';
+import { promptText, promptYesNo } from '../utils/prompt.js';
 import { installTerminalForProject } from '../utils/terminalInstall.js';
 import { deployCommandListener } from '../utils/listenerDeploy.js';
 import { deployFactoryTemplates, deployFactoryConfig, ensureAccountInIni } from '../utils/factoryAssets.js';
