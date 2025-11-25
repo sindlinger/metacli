@@ -1,10 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import fs from 'fs-extra';
-import path from 'path';
-import { ProjectStore, repoRoot } from '../config/projectStore.js';
+import { ProjectStore } from '../config/projectStore.js';
 import { promptYesNo } from '../utils/prompt.js';
-import { installTerminalForProject } from '../utils/terminalInstall.js';
 import { deployCommandListener } from '../utils/listenerDeploy.js';
 import { deployFactoryTemplates, deployFactoryConfig, ensureAccountInIni } from '../utils/factoryAssets.js';
 import { restartListenerInstance } from './listener.js';
@@ -15,7 +12,7 @@ export function registerProjectCommands(program: Command) {
 
   project
     .command('reset')
-    .description('Refaz o projeto na mesma pasta de terminal; opcionalmente reinstala o MT5')
+    .description('Reaplica listener/config/templates no projeto atual e reinicia o listener (sem reinstalar terminal)')
     .option('--id <id>', 'Projeto alvo (default: projeto ativo/last_project)')
     .action(async (opts) => {
       const store = new ProjectStore();
@@ -26,33 +23,19 @@ export function registerProjectCommands(program: Command) {
         throw new Error(`Projeto "${current.project}" não encontrado em mtcli_projects.json.`);
       }
 
-      const reinstall = await promptYesNo(`Reinstalar um novo terminal na pasta do projeto "${current.project}"?`, false, 10_000);
-      let install;
-      if (reinstall) {
-        const destRoot = path.join(repoRoot(), 'projects', 'terminals', current.project);
-        await fs.remove(destRoot);
-        install = await installTerminalForProject(current.project);
-      } else {
-        if (!info.terminal || !info.metaeditor || !info.data_dir || !info.libs) {
-          throw new Error('Projeto não possui caminhos completos (terminal/metaeditor/data_dir/libs).');
-        }
-        install = {
-          terminal: info.terminal,
-          metaeditor: info.metaeditor,
-          dataDir: info.data_dir,
-          libs: info.libs,
-          root: path.dirname(info.terminal),
-        };
+      if (!info.terminal || !info.metaeditor || !info.data_dir || !info.libs) {
+        throw new Error('Projeto não possui caminhos completos (terminal/metaeditor/data_dir/libs).');
       }
 
-      const payload = {
-        ...info,
-        terminal: install.terminal,
-        metaeditor: install.metaeditor,
-        data_dir: install.dataDir,
-        libs: install.libs,
+      const install = {
+        terminal: info.terminal,
+        metaeditor: info.metaeditor,
+        dataDir: info.data_dir,
+        libs: info.libs,
+        root: '',
       };
-      const saved = await store.setProject(current.project, payload, true);
+
+      const saved = await store.setProject(current.project, info, true);
 
       await deployCommandListener(install);
       await deployFactoryTemplates(install.dataDir);
