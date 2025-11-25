@@ -10,9 +10,17 @@ export async function promptText(question: string): Promise<string> {
   return answer;
 }
 
-export async function promptYesNo(question: string, defaultYes = true): Promise<boolean> {
+export async function promptYesNo(question: string, defaultYes = true, timeoutMs?: number): Promise<boolean> {
   const suffix = defaultYes ? ' [Y/n] ' : ' [y/N] ';
-  const answer = (await promptText(question + suffix)).trim().toLowerCase();
+  const ask = promptText(question + suffix).then((resp) => resp.trim().toLowerCase());
+
+  const answer = timeoutMs
+    ? await Promise.race<string | null>([
+        ask,
+        new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+      ])
+    : await ask;
+
   if (!answer) return defaultYes;
   return ['y', 'yes', 's', 'sim'].includes(answer);
 }

@@ -26,12 +26,12 @@ export function registerProjectCommands(program: Command) {
         throw new Error(`Projeto "${current.project}" não encontrado em mtcli_projects.json.`);
       }
 
-      const reinstall = await promptYesNo(`Reinstalar um novo terminal na pasta do projeto "${current.project}"?`, false);
+      const reinstall = await promptYesNo(`Reinstalar um novo terminal na pasta do projeto "${current.project}"?`, false, 10_000);
       let install;
       if (reinstall) {
         const destRoot = path.join(repoRoot(), 'projects', 'terminals', current.project);
         await fs.remove(destRoot);
-        install = await installTerminalForProject(current.project, { timeoutMs: 10_000 });
+        install = await installTerminalForProject(current.project);
       } else {
         if (!info.terminal || !info.metaeditor || !info.data_dir || !info.libs) {
           throw new Error('Projeto não possui caminhos completos (terminal/metaeditor/data_dir/libs).');

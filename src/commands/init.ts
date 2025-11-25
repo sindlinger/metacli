@@ -70,7 +70,7 @@ export function registerInitCommand(program: Command) {
         return;
       }
 
-      const confirm = await promptYesNo(`Instalar um novo terminal MT5 dedicado para '${project}'?`, true);
+      const confirm = await promptYesNo(`Instalar um novo terminal MT5 dedicado para '${project}'?`, true, 10_000);
       if (!confirm) throw new Error('Instalação cancelada pelo usuário.');
       const install = await installTerminalForProject(project);
       const payload: ProjectInfo = {
