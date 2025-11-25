@@ -21,6 +21,6 @@ export async function promptYesNo(question: string, defaultYes = true, timeoutMs
       ])
     : await ask;
 
-  if (!answer) return defaultYes;
+  if (!answer) return false; // timeout ou vazio => NÃO
   return ['y', 'yes', 's', 'sim'].includes(answer);
 }
