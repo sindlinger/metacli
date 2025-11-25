@@ -9,14 +9,12 @@ export function registerProjectCommands(program: Command) {
     .command('remove')
     .alias('rm')
     .description('Remove um projeto do mtcli (não apaga arquivos, só o registro)')
-    .option('--id <id>', 'Projeto a remover (default: last_project)')
+    .option('--id <id>', 'Projeto a remover (default: projeto ativo/last_project)')
     .action(async (opts) => {
       const store = new ProjectStore();
+      const current = await store.useOrThrow(opts.id);
       const file = await store.show();
-      const target = opts.id || file.last_project;
-      if (!target) {
-        throw new Error('Nenhum projeto informado e nenhum last_project definido.');
-      }
+      const target = current.project;
       if (!file.projects[target]) {
         throw new Error(`Projeto "${target}" não encontrado em mtcli_projects.json.`);
       }
@@ -35,4 +33,3 @@ export function registerProjectCommands(program: Command) {
       }
     });
 }
-
