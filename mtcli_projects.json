@@ -1,5 +1,5 @@
 {
-  "last_project": "project-20251124-125338-klj1",
+  "last_project": "Waves-GPU",
   "projects": {
     "project-20251124-125338-klj1": {
       "project": "project-20251124-125338-klj1",
@@ -16,6 +16,22 @@
       },
       "updated_at": "2025-11-24T23:30:41.452Z",
       "created_at": "2025-11-24T15:53:53.962Z"
+    },
+    "Waves-GPU": {
+      "project": "Waves-GPU",
+      "libs": "/mnt/c/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/EDC2DBD7187032A6326EC5B7406951FA/MQL5/Libraries",
+      "terminal": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/Waves-GPU/terminal64.exe",
+      "metaeditor": "/mnt/e/dev/mtcli/mtcli-integrado/projects/terminals/Waves-GPU/MetaEditor64.exe",
+      "data_dir": "/mnt/c/Users/pichau/AppData/Roaming/MetaQuotes/Terminal/EDC2DBD7187032A6326EC5B7406951FA",
+      "defaults": {
+        "symbol": "EURUSD",
+        "period": "H1",
+        "subwindow": 1,
+        "profile": "Default",
+        "portable": false
+      },
+      "updated_at": "2025-11-25T00:46:48.381Z",
+      "created_at": "2025-11-25T00:46:48.381Z"
     }
   }
 }
