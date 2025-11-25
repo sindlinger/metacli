@@ -196,12 +196,19 @@ async function downloadFile(url: string, destination: string): Promise<void> {
  * uma instalação própria em projects/terminals/<projectId>.
  * Não reutiliza pasta externa; baixa/instala se necessário.
  */
-export async function installTerminalForProject(projectId: string) {
+interface InstallOptions {
+  skipInstall?: boolean;
+}
+
+export async function installTerminalForProject(projectId: string, options: InstallOptions = {}) {
   const destRoot = path.join(repoRoot(), 'projects', 'terminals', projectId);
   await fs.ensureDir(destRoot);
 
-  // Se já houver terminal instalado ali, reaproveita; caso contrário, instala novo.
+  // Se já houver terminal instalado ali, reaproveita; caso contrário, instala novo (a menos que skipInstall=true).
   if (!(await isTerminalFolder(destRoot))) {
+    if (options.skipInstall) {
+      throw new Error(`skipInstall solicitado, mas não há terminal em ${destRoot}`);
+    }
     await downloadFreshTerminal({ targetDir: destRoot, interactive: false });
   }
 

@@ -49,6 +49,7 @@ export function registerInitCommand(program: Command) {
     .argument('[project]', 'Id do projeto (opcional; se não houver, será gerado)')
     .description('Liga o MT5 do agente, reinicia o listener e aplica defaults seguros (terminal isolado por projeto; baixa MT5 se precisar)')
     .option('--project <id>', 'Nome do projeto (alternativa à posição)')
+    .option('--assume-installed', 'Pula instalação e usa terminal já existente em projects/terminals/<id>', false)
     .option('--symbol <symbol>', 'Símbolo padrão dos comandos')
     .option('--period <period>', 'Período padrão (H1, M15, etc.)')
     .option('--subwindow <index>', 'Subjanela padrão do indicador', (val) => parseInt(val, 10))
@@ -66,7 +67,14 @@ export function registerInitCommand(program: Command) {
 
       let info = file.projects[project];
       if (!info) {
-        const install = await installTerminalForProject(project);
+        let install;
+        if (opts.assumeInstalled) {
+          install = await installTerminalForProject(project, { skipInstall: true });
+        } else {
+          const confirm = await promptYesNo(`Instalar um novo terminal MT5 dedicado para '${project}'?`, true);
+          if (!confirm) throw new Error('Instalação cancelada pelo usuário.');
+          install = await installTerminalForProject(project);
+        }
         const payload = {
           project,
           libs: install.libs,
