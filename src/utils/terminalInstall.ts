@@ -8,6 +8,7 @@ import { promptYesNo } from './prompt.js';
 
 const INSTALLER_URL =
   process.env.MTCLI_MT5_INSTALLER_URL || 'https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe';
+const LOCAL_INSTALLER = path.join(repoRoot(), 'factory', 'dukascopy5setup.exe');
 
 // BASE_TERMINAL_DIR: onde guardamos todos os terminais baixados/instalados
 const BASE_TERMINAL_DIR = process.env.MTCLI_BASE_TERMINAL_DIR || path.join(repoRoot(), 'projects', 'terminals', '_base');
@@ -193,19 +194,21 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
 
   const target = path.resolve(opts.targetDir || FRESH_DIR);
   const installerUrl = opts.installerUrl || INSTALLER_URL;
-  const installerPath = INSTALLER_PATH;
+  // prefere instalador local (factory/dukascopy5setup.exe) se existir
+  const installerPath = (await fs.pathExists(LOCAL_INSTALLER)) ? LOCAL_INSTALLER : INSTALLER_PATH;
 
-  if (await isTerminalFolder(target)) return target; // já baixado/instalado
+  if (await isTerminalFolder(target)) return target; // já instalado
 
-  if (opts.interactive !== false) {
-    const ok = await promptYesNo('Nenhum terminal base encontrado. Baixar e instalar o MetaTrader 5 agora?', true);
-    if (!ok) {
-      throw new Error('Download do MT5 cancelado pelo usuário.');
+  if (!(await fs.pathExists(installerPath))) {
+    if (opts.interactive !== false) {
+      const ok = await promptYesNo('Nenhum terminal base encontrado. Baixar e instalar o MetaTrader 5 agora?', true);
+      if (!ok) {
+        throw new Error('Download do MT5 cancelado pelo usuário.');
+      }
     }
+    console.log(`Baixando instalador MT5 de ${installerUrl}...`);
+    await downloadFile(installerUrl, installerPath);
   }
-
-  console.log(`Baixando instalador MT5 de ${installerUrl}...`);
-  await downloadFile(installerUrl, installerPath);
 
   const targetWin = await toWindowsPath(target);
   const installerWin = await toWindowsPath(installerPath);
@@ -223,16 +226,8 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
     await execa('cmd.exe', ['/C', `"${installerWin}" /auto ${pathArg}`], { stdio: 'inherit', windowsHide: true });
   }
 
-  // Se não instalou exatamente em target, tenta copiar do template local projects/terminals/_base
   if (!(await isTerminalFolder(target))) {
-    const base = path.join(repoRoot(), 'projects', 'terminals', '_base');
-    if (await isTerminalFolder(base)) {
-      await fs.copy(base, target, { overwrite: true });
-    }
-  }
-
-  if (!(await isTerminalFolder(target))) {
-    throw new Error('Instalação do MT5 falhou: terminal64.exe não encontrado no destino solicitado e não há template _base.');
+    throw new Error('Instalação do MT5 falhou: terminal64.exe não encontrado no destino solicitado.');
   }
 
   return target;
