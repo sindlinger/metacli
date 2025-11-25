@@ -67,6 +67,32 @@ async function isTerminalFolder(dir: string): Promise<boolean> {
   return fs.pathExists(path.join(dir, 'terminal64.exe'));
 }
 
+async function findDataDirByOrigin(installRoot: string): Promise<string | null> {
+  const appData = await getWinAppData();
+  const terminalsRoot = path.join(appData, 'MetaQuotes', 'Terminal');
+  if (!(await fs.pathExists(terminalsRoot))) return null;
+  const entries = await fs.readdir(terminalsRoot);
+  const installWin = await toWindowsPath(installRoot);
+  for (const e of entries) {
+    const originPath = path.join(terminalsRoot, e, 'origin.txt');
+    try {
+      const content = await fs.readFile(originPath, 'utf8');
+      if (content.trim() === installWin) {
+        return path.join(terminalsRoot, e);
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+async function touchDataDirByMetaEditor(installRoot: string): Promise<void> {
+  const meta = path.join(installRoot, METAEDITOR_EXE);
+  const metaWin = await toWindowsPath(meta);
+  await execa('cmd.exe', ['/C', `${metaWin} /version`], { timeout: 30000, windowsHide: true }).catch(() => {});
+}
+
 
 async function downloadFile(url: string, destination: string): Promise<void> {
   await fs.ensureDir(path.dirname(destination));
@@ -117,7 +143,16 @@ export async function installTerminalForProject(projectId: string) {
 
   const terminalExe = path.join(destRoot, 'terminal64.exe');
   const metaeditorExe = path.join(destRoot, 'MetaEditor64.exe');
-  const dataDir = destRoot; // usamos /portable implícito: dados ficam na própria pasta de instalação
+  // data_dir em modo normal: localizar via origin.txt em %APPDATA%
+  let dataDir = await findDataDirByOrigin(destRoot);
+  if (!dataDir) {
+    await touchDataDirByMetaEditor(destRoot);
+    dataDir = await findDataDirByOrigin(destRoot);
+  }
+  if (!dataDir) {
+    throw new Error('Não foi possível localizar o data_dir gerado (origin.txt) para esta instalação. Abra o terminal manualmente uma vez e tente novamente.');
+  }
+
   const libs = path.join(dataDir, 'MQL5', 'Libraries');
   await fs.ensureDir(libs);
 
@@ -170,12 +205,19 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
       windowsHide: true,
     });
   } else {
-    await execa('cmd.exe', ['/C', `${installerWin} /auto ${pathArg}`], { stdio: 'inherit', windowsHide: true });
+    await execa('cmd.exe', ['/C', `"${installerWin}" /auto ${pathArg}`], { stdio: 'inherit', windowsHide: true });
   }
 
-  // Se não instalou exatamente em target, consideramos falha (não copiamos de outro lugar).
+  // Se não instalou exatamente em target, tenta copiar do template local projects/terminals/_base
   if (!(await isTerminalFolder(target))) {
-    throw new Error('Instalação do MT5 falhou: terminal64.exe não encontrado no destino solicitado.');
+    const base = path.join(repoRoot(), 'projects', 'terminals', '_base');
+    if (await isTerminalFolder(base)) {
+      await fs.copy(base, target, { overwrite: true });
+    }
+  }
+
+  if (!(await isTerminalFolder(target))) {
+    throw new Error('Instalação do MT5 falhou: terminal64.exe não encontrado no destino solicitado e não há template _base.');
   }
 
   return target;
