@@ -64,6 +64,32 @@ async function getWinAppData(): Promise<string> {
   return stdout.trim();
 }
 
+async function findLatestSystemTerminal(): Promise<string | null> {
+  const candidates = [
+    'C:/Program Files',
+    'C:/Program Files (x86)',
+    'C:/ProgramData',
+  ];
+  let newest: { dir: string; mtime: number } | null = null;
+  for (const base of candidates) {
+    const root = path.resolve(base, '.');
+    const exists = await fs.pathExists(root).catch(() => false);
+    if (!exists) continue;
+    const entries = await fs.readdir(root).catch(() => []);
+    for (const e of entries) {
+      const dir = path.join(root, e);
+      const exe = path.join(dir, TERMINAL_EXE);
+      const stat = await fs.stat(exe).catch(() => null);
+      if (stat && stat.isFile()) {
+        if (!newest || stat.mtimeMs > newest.mtime) {
+          newest = { dir, mtime: stat.mtimeMs };
+        }
+      }
+    }
+  }
+  return newest?.dir || null;
+}
+
 async function isTerminalFolder(dir: string): Promise<boolean> {
   return fs.pathExists(path.join(dir, 'terminal64.exe'));
 }
@@ -226,8 +252,22 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
     await execa('cmd.exe', ['/C', `"${installerWin}" /auto ${pathArg}`], { stdio: 'inherit', windowsHide: true });
   }
 
+  // espera alguns segundos porque o instalador pode continuar em background
+  for (let i = 0; i < 30; i += 1) {
+    if (await isTerminalFolder(target)) break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
   if (!(await isTerminalFolder(target))) {
-    throw new Error('Instalação do MT5 falhou: terminal64.exe não encontrado no destino solicitado.');
+    const fallback = await findLatestSystemTerminal();
+    if (fallback && (await isTerminalFolder(fallback))) {
+      console.log(chalk.gray(`[install] Instalador ignorou /path. Copiando terminal de ${fallback} para ${targetWin}`));
+      await fs.copy(fallback, target, { overwrite: true });
+    }
+  }
+
+  if (!(await isTerminalFolder(target))) {
+    throw new Error('Instalação do MT5 falhou: terminal64.exe não encontrado no destino solicitado nem em fallback.');
   }
 
   return target;
