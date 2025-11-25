@@ -198,6 +198,7 @@ async function downloadFile(url: string, destination: string): Promise<void> {
  */
 interface InstallOptions {
   skipInstall?: boolean;
+  timeoutMs?: number;
 }
 
 export async function installTerminalForProject(projectId: string, options: InstallOptions = {}) {
@@ -209,7 +210,7 @@ export async function installTerminalForProject(projectId: string, options: Inst
     if (options.skipInstall) {
       throw new Error(`skipInstall solicitado, mas não há terminal em ${destRoot}`);
     }
-    await downloadFreshTerminal({ targetDir: destRoot, interactive: false });
+    await downloadFreshTerminal({ targetDir: destRoot, interactive: false, timeoutMs: options.timeoutMs });
   }
 
   const terminalExe = path.join(destRoot, 'terminal64.exe');
@@ -240,6 +241,7 @@ interface DownloadOpts {
   targetDir?: string;
   installerUrl?: string;
   interactive?: boolean;
+  timeoutMs?: number;
 }
 
 export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<string> {
@@ -281,8 +283,8 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
     await execa('cmd.exe', ['/C', `"${installerWin}" /auto ${pathArg}`], { stdio: 'inherit', windowsHide: true });
   }
 
-  // espera até 3 minutos porque o instalador segue rodando em background
-  for (let i = 0; i < 180; i += 1) {
+  const waitSeconds = opts.timeoutMs ? Math.ceil(opts.timeoutMs / 1000) : 180;
+  for (let i = 0; i < waitSeconds; i += 1) {
     if (await isTerminalFolder(target)) break;
     await new Promise((r) => setTimeout(r, 1000));
   }
