@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import https from 'https';
 import { pipeline } from 'stream/promises';
 import { execa } from 'execa';
+import chalk from 'chalk';
 import { repoRoot } from '../config/projectStore.js';
 import { promptYesNo } from './prompt.js';
 
@@ -252,8 +253,8 @@ export async function downloadFreshTerminal(opts: DownloadOpts = {}): Promise<st
     await execa('cmd.exe', ['/C', `"${installerWin}" /auto ${pathArg}`], { stdio: 'inherit', windowsHide: true });
   }
 
-  // espera alguns segundos porque o instalador pode continuar em background
-  for (let i = 0; i < 30; i += 1) {
+  // espera até 3 minutos porque o instalador segue rodando em background
+  for (let i = 0; i < 180; i += 1) {
     if (await isTerminalFolder(target)) break;
     await new Promise((r) => setTimeout(r, 1000));
   }
