@@ -125,13 +125,18 @@ async function findDataDirByOrigin(installRoot: string): Promise<string | null> 
   return newest?.dir || null;
 }
 
-async function waitForDataDir(installRoot: string, timeoutMs = 180000): Promise<string | null> {
-  const started = Date.now();
+async function waitForDataDir(installRoot: string, timeoutMs = 30000): Promise<string | null> {
   const winTarget = normalizeWinPath(await toWindowsPath(installRoot));
+
+  // tentativa imediata
+  const immediate = await findDataDirByOrigin(installRoot);
+  if (immediate) return immediate;
+
+  const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     const found = await findDataDirByOrigin(installRoot);
     if (found) return found;
-    // Se não houver correspondência, tenta reescrever o origin da pasta mais recente para o novo caminho
+
     const newest = await findNewestDataDir();
     if (newest) {
       try {
@@ -144,6 +149,12 @@ async function waitForDataDir(installRoot: string, timeoutMs = 180000): Promise<
         await rewriteOrigin(newest, installRoot);
         return newest;
       }
+    }
+
+    const elapsed = Date.now() - started;
+    if (elapsed > 0 && elapsed % 5000 < 1000) {
+      const sec = Math.floor(elapsed / 1000);
+      console.log(`[install] aguardando data_dir aparecer... ${sec}s`);
     }
     await new Promise((r) => setTimeout(r, 1000));
   }
@@ -209,16 +220,20 @@ export async function installTerminalForProject(projectId: string, options: Inst
     if (options.skipInstall) {
       throw new Error(`skipInstall solicitado, mas não há terminal em ${destRoot}`);
     }
+    console.log(`[install] iniciando instalação MT5 em ${destRoot}`);
     await downloadFreshTerminal({ targetDir: destRoot, interactive: false });
+  } else {
+    console.log(`[install] terminal já existe em ${destRoot}, reutilizando.`);
   }
 
   const terminalExe = path.join(destRoot, 'terminal64.exe');
   const metaeditorExe = path.join(destRoot, 'MetaEditor64.exe');
   // data_dir em modo normal: localizar via origin.txt em %APPDATA%
-  let dataDir = await waitForDataDir(destRoot, 180000);
+  let dataDir = await waitForDataDir(destRoot, 30000);
   if (!dataDir) {
+    console.log('[install] tocando MetaEditor para forçar criação de data_dir');
     await touchDataDirByMetaEditor(destRoot);
-    dataDir = await waitForDataDir(destRoot, 60000);
+    dataDir = await waitForDataDir(destRoot, 30000);
   }
   if (!dataDir) {
     throw new Error('Não foi possível localizar o data_dir gerado (origin.txt) para esta instalação. Abra o terminal manualmente uma vez e tente novamente.');
