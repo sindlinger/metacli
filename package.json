@@ -4,7 +4,8 @@
   "description": "CLI agnóstico para automação do MetaTrader 5 dentro de projetos. Pode ser copiado para qualquer repositório.",
   "main": "dist/cli.js",
   "bin": {
-    "mtcli": "bin/mtcli.js"
+    "mtcli": "bin/mtcli.js",
+    "dev": "bin/dev.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
