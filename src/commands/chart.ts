@@ -663,12 +663,14 @@ export function registerIndicatorCommands(program: Command) {
 
   indicator
     .command('buffers')
-    .description('Mostra estatísticas rápidas dos buffers do indicador anexado (CopyBuffer, plot/empty/min/max)')
+    .description('Mostra estatísticas rápidas dos buffers do indicador anexado (CopyBuffer, plot/empty/min/max) e opcional CSV')
     .argument('[name]')
     .option('-s, --symbol <symbol>')
     .option('-p, --period <period>')
     .option('-n, --name <name>')
     .option('--subwindow <index>', 'Subjanela', (val) => parseInt(val, 10))
+    .option('--window <n>', 'Qtd de barras a inspecionar (default 64, máx 2048)', (val) => parseInt(val, 10))
+    .option('--csv <file>', 'Salva buffers em CSV dentro de MQL5/Files (ex.: buffers.csv)')
     .option('--project <id>')
     .action(async (nameArg, opts) => {
       const info = await store.useOrThrow(opts.project);
@@ -676,10 +678,12 @@ export function registerIndicatorCommands(program: Command) {
       const period = resolvePeriod(info, opts.period);
       const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
       const subwindow = resolveSubwindow(info, opts.subwindow);
+      const window = typeof opts.window === 'number' && Number.isFinite(opts.window) ? opts.window : null;
+      const csv = opts.csv as string | undefined;
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
       }
-      await sendListenerCommand(info, 'IND_BUFFERS', [symbol, period, subwindow, indicatorName], { timeoutMs: 8000 });
+      await sendListenerCommand(info, 'IND_BUFFERS', [symbol, period, subwindow, indicatorName, window, csv], { timeoutMs: 8000 });
     });
 
   indicator

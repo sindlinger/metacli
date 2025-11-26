@@ -314,6 +314,13 @@ bool H_IndBuffers(string p[], string &m, string &d[])
 {
   if(ArraySize(p)<4){ m="params"; return false; }
   string sym=p[0]; ENUM_TIMEFRAMES tf=TfFromString(p[1]); int sub=SubwindowSafe(p[2]); string name=p[3];
+  int window=64;
+  if(ArraySize(p)>=5) window=(int)StrToInteger(p[4]);
+  if(window<=0) window=64;
+  if(window>2048) window=2048;
+  string csv=(ArraySize(p)>=6)?p[5]:"";
+  bool writeCsv=(StringLen(csv)>0);
+
   long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
   long h=ChartIndicatorGet(cid, sub-1, name);
   if(h==INVALID_HANDLE){ m="handle"; return false; }
@@ -335,14 +342,37 @@ bool H_IndBuffers(string p[], string &m, string &d[])
     }
   }
 
-  ArrayResize(d, 0);
-  ArrayResize(d, ArraySize(d)+1); d[ArraySize(d)-1]=StringFormat("buffers=%d plots=%d", buffers, plots);
+  // CSV opcional
+  int fh=-1;
+  if(writeCsv)
+  {
+    fh=FileOpen(csv, FILE_WRITE|FILE_CSV|FILE_ANSI, ';');
+    if(fh==INVALID_HANDLE) { m="csv"; return false; }
+    FileWrite(fh, "bar"); for(int c=0;c<buffers;c++) FileWrite(fh, "buf"+IntegerToString(c));
+  }
 
-  // Stats por buffer (amostra curta)
+  ArrayResize(d, 0);
+  ArrayResize(d, ArraySize(d)+1); d[ArraySize(d)-1]=StringFormat("buffers=%d plots=%d window=%d", buffers, plots, window);
+
+  // DataWindow (bar 0 e bar 1)
+  for(int dw=0; dw<2; dw++)
+  {
+    string line="datawindow bar"+IntegerToString(dw)+":";
+    for(int b=0;b<buffers;b++)
+    {
+      double v[];
+      int c=CopyBuffer(h,b,dw,1,v);
+      double val=(c>0)?v[0]:EMPTY_VALUE;
+      line+=" b"+IntegerToString(b)+"="+DoubleToString(val,6);
+    }
+    ArrayResize(d, ArraySize(d)+1); d[ArraySize(d)-1]=line;
+  }
+
+  // Stats por buffer (amostra window)
   for(int i=0;i<buffers;i++)
   {
     double buf[];
-    int copied = CopyBuffer(h, i, 0, 64, buf);
+    int copied = CopyBuffer(h, i, 0, window, buf);
     int empties=0, invalids=0;
     double minv=DBL_MAX, maxv=-DBL_MAX, firstv=EMPTY_VALUE;
     for(int k=0;k<copied;k++)
@@ -362,7 +392,27 @@ bool H_IndBuffers(string p[], string &m, string &d[])
       (maxv==-DBL_MAX)?EMPTY_VALUE:maxv
     );
     ArrayResize(d, ArraySize(d)+1); d[ArraySize(d)-1]=line;
+
   }
+
+  if(writeCsv && fh!=INVALID_HANDLE)
+  {
+    // escrever CSV por linhas
+    for(int bar=0; bar<window; bar++)
+    {
+      FileWrite(fh, IntegerToString(bar));
+      for(int b=0; b<buffers; b++)
+      {
+        double v[];
+        int c=CopyBuffer(h,b,bar,1,v);
+        double val=(c>0)?v[0]:EMPTY_VALUE;
+        FileWrite(fh, DoubleToString(val,8));
+      }
+    }
+    FileClose(fh);
+    ArrayResize(d, ArraySize(d)+1); d[ArraySize(d)-1]=StringFormat("csv=%s", csv);
+  }
+
   m="ok"; return true;
 }
 
