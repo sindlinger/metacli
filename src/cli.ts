@@ -88,7 +88,7 @@ async function main() {
       key: 'mt5',
       title: 'MT5 Operação',
       color: chalk.cyan,
-      commands: ['events', 'globals', 'objects', 'chart', 'trade', 'logs', 'verify', 'config', 'launch-cmd', 'ducascopy', 'copy', 'terminal'],
+      commands: ['events', 'globals', 'objects', 'chart', 'trade', 'logs', 'verify', 'config', 'launch-cmd', 'ducascopy', 'copy'],
     },
     {
       key: 'maw',
