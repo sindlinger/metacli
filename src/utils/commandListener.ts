@@ -159,6 +159,10 @@ export async function startTerminalWindows(terminalPath: string, dataDir: string
   const periodArg = '/period:M1';
   const templateArg = '/template:mtcli-default.tpl';
   const configArg = `/config:${cfgWin}`;
+  const profileArg = '/profile:mtcli-auto';
+  const loginArg = login ? `/login:${escapeForPwshPath(login)}` : '';
+  const passwordArg = password ? `/password:${escapeForPwshPath(password)}` : '';
+  const serverArg = server ? `/server:${escapeForPwshPath(server)}` : '';
 
   const ps = isWin
     ? 'powershell.exe'
@@ -179,9 +183,10 @@ $argsList = @(
   '${symbolArg}',
   '${periodArg}',
   '${templateArg}',
-  '/profile:${escapeForPwshPath(profileName)}'
-  ${login && password ? `,'/login:${escapeForPwshPath(login)}','/password:${escapeForPwshPath(password)}'` : ''}
-  ${server ? `,'/server:${escapeForPwshPath(server)}'` : ''}
+  '${profileArg}'
+  ${loginArg ? `,'${loginArg}'` : ''}
+  ${passwordArg ? `,'${passwordArg}'` : ''}
+  ${serverArg ? `,'${serverArg}'` : ''}
   )
 Start-Process -FilePath "${termEsc}" -WorkingDirectory "${workEsc}" -ArgumentList $argsList
 `;
