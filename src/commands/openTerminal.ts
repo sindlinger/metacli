@@ -40,7 +40,7 @@ export function registerOpenTerminalCommand(program: Command) {
       if (!running) {
         console.log(
           chalk.yellow(
-            '[open-terminal] Processo não confirmado após o start. Se a janela não estiver aberta, execute o run-terminal.ps1 no data_dir; depois rode mtcli events ping.'
+            '[open-terminal] Processo não confirmado após o start. Se a janela não estiver aberta, execute o run-terminal.ps1 no data_dir.'
           )
         );
         return;

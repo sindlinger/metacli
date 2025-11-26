@@ -138,7 +138,7 @@ export function registerInitCommand(program: Command) {
       if (!running) {
         console.log(
           chalk.yellow(
-            '[init] Processo não confirmado após o start. Se a janela não estiver aberta, execute o run-terminal.ps1 no data_dir; depois rode mtcli events ping.'
+            '[init] Processo não confirmado após o start. Se a janela não estiver aberta, execute o run-terminal.ps1 no data_dir.'
           )
         );
       }
@@ -167,7 +167,7 @@ export function registerInitCommand(program: Command) {
       } catch {
         console.log(
           chalk.yellow(
-            '[init] CommandListener não respondeu. Após abrir o terminal, rode mtcli open-terminal ou mtcli events ping para reanexar/checar.'
+            '[init] CommandListener não respondeu. Após abrir o terminal, rode mtcli activate para reanexar/checar.'
           )
         );
       }

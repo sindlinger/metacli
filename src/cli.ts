@@ -27,6 +27,10 @@ import { registerProjectCommands } from './commands/project.js';
 import { registerActivateCommand } from './commands/activate.js';
 import { registerDevCommand } from './commands/dev.js';
 import { registerTerminalControlCommands } from './commands/terminalControl.js';
+import { ProjectStore } from './config/projectStore.js';
+import { ensureHealth, ensureListenerAlive } from './utils/listenerGuard.js';
+import { loadStatusSync } from './utils/status.js';
+import { registerWsBridgeCommand } from './commands/wsBridge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -67,6 +71,9 @@ async function main() {
   registerConfigCommands(program);
   registerLogsCommands(program);
   registerDucascopyCommands(program);
+  registerWsBridgeCommand(program);
+
+  const store = new ProjectStore();
 
   // Agrupamento em 4 sessões coloridas
   const groupDefs: Array<{ key: string; title: string; color: (s: string) => string; commands: string[] }> = [
@@ -81,7 +88,7 @@ async function main() {
       key: 'mt5',
       title: 'MT5 Operação',
       color: chalk.cyan,
-      commands: ['events', 'globals', 'objects', 'chart', 'trade', 'logs', 'verify', 'config', 'ping', 'launch-cmd', 'ducascopy', 'copy', 'terminal'],
+      commands: ['events', 'globals', 'objects', 'chart', 'trade', 'logs', 'verify', 'config', 'launch-cmd', 'ducascopy', 'copy', 'terminal'],
     },
     {
       key: 'maw',
@@ -107,7 +114,25 @@ async function main() {
   }
 
   if (blocks.length) {
-    program.addHelpText('beforeAll', '\n' + blocks.join('\n\n') + '\n');
+    // Status badge
+    const renderStatus = () => {
+      try {
+        const info = store.useLastSync();
+        if (!info) return chalk.red('Status: [SEM PROJETO] rode mtcli activate --project <id>');
+        const status = loadStatusSync(info);
+        const ts = status?.last_ping_ok ? Date.parse(status.last_ping_ok) : 0;
+        const age = ts ? Math.round((Date.now() - ts) / 1000) : null;
+        if (!ts) return chalk.yellow(`Status: [SEM HEALTH] projeto ${info.project}, rode mtcli activate`);
+        const ok = age !== null && age <= 60;
+        return ok
+          ? chalk.green(`Status: [OK] ${info.project} (ping ${age}s)`)
+          : chalk.yellow(`Status: [EXPIRADO] ${info.project} (ping ${age}s atrás)`);
+      } catch {
+        return chalk.red('Status: [ERRO] não foi possível ler projeto/health');
+      }
+    };
+
+    program.addHelpText('beforeAll', '\n' + renderStatus() + '\n\n' + blocks.join('\n\n') + '\n');
   }
 
   // Comandos de atalho para listar apenas um grupo (mt5 / maw)

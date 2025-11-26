@@ -1,17 +1,25 @@
 #property copyright "MTCLI"
 #property link      ""
-#property version   "1.0"
+#property version   "1.1"
 #property strict
 
 // CommandListener: lê cmd_*.txt em MQL5\Files e grava resp_*.txt
 // Versão 1.0.6 — cobre comandos do mtcli (chart/tpl/ind/ea/obj/trade/globals/tests)
 
 #include <Trade\Trade.mqh>
+#include <mtcli_ws.mqh>
 CTrade trade;
 
 string g_files_dir;
 int    g_timer_sec = 1;
-string LISTENER_VERSION = "1.0.6";
+string LISTENER_VERSION = "1.1.0";
+
+// Canal WS
+input bool   InpWsEnable   = true;
+input string InpWsHostPort = "127.0.0.1:8787"; // bridge ws-bridge
+int    g_ws = INVALID_HANDLE;
+bool   g_ws_connected = false;
+ulong  g_ws_last_try = 0;
 
 // Armazena último attach para inputs simples
 string g_lastIndName = "";
@@ -27,6 +35,86 @@ string g_lastEATf = "";
 string g_lastEATpl = "";
 
 int BuildParams(const string pstr, MqlParam &outParams[]);
+
+// Canal WS ---------------------------------------------------------------
+input bool   InpWsEnable   = true;
+input string InpWsHostPort = "127.0.0.1:8787";
+int    g_ws = INVALID_HANDLE;
+bool   g_ws_connected = false;
+ulong  g_ws_last_try = 0;
+
+void WS_Close()
+{
+  if(g_ws != INVALID_HANDLE)
+  {
+    SocketClose(g_ws);
+    g_ws = INVALID_HANDLE;
+    g_ws_connected = false;
+  }
+}
+
+bool WS_Connect()
+{
+  WS_Close();
+  if(!InpWsEnable) return false;
+  g_ws = SocketCreate();
+  if(g_ws == INVALID_HANDLE) return false;
+  if(!SocketConnect(g_ws, InpWsHostPort, 2000))
+  {
+    WS_Close(); return false;
+  }
+  if(!WS_ClientHandshake(g_ws, InpWsHostPort))
+  {
+    WS_Close(); return false;
+  }
+  g_ws_connected = true;
+  g_ws_last_try = GetTickCount64();
+  WS_SendText(g_ws, "0|PING|hello");
+  return true;
+}
+
+void WS_TryReconnect()
+{
+  if(!InpWsEnable) return;
+  ulong now = GetTickCount64();
+  if(now - g_ws_last_try < 3000) return;
+  g_ws_last_try = now;
+  WS_Connect();
+}
+
+void WS_Pump()
+{
+  if(!g_ws_connected)
+  {
+    WS_TryReconnect();
+    return;
+  }
+  string msg;
+  if(WS_ReadText(g_ws, msg, 5))
+  {
+    string parts[]; int n=StringSplit(msg,'|',parts);
+    string id=(n>0)?parts[0]:"";
+    string type=(n>1)?parts[1]:"";
+    ArrayRemove(parts,0); ArrayRemove(parts,0);
+    string resp="ok"; string data[];
+    bool ok=false;
+    if(type=="PING") { ok=true; resp="pong"; }
+    else { ok = Dispatch(type, parts, resp, data); }
+    string payload = id + "|" + (ok?"OK":"ERROR") + "|" + resp;
+    WS_SendText(g_ws, payload);
+  }
+  else
+  {
+    if(!SocketIsConnected(g_ws)) { g_ws_connected=false; WS_Close(); }
+  }
+}
+
+// Canal WS
+input bool   InpWsEnable   = true;
+input string InpWsHostPort = "127.0.0.1:8787";
+int    g_ws = INVALID_HANDLE;
+bool   g_ws_connected = false;
+ulong  g_ws_last_try = 0;
 
 // Utilidades --------------------------------------------------------------
 string PayloadGet(const string payload, const string key)
@@ -882,20 +970,25 @@ int OnInit()
   g_files_dir = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL5\\Files";
   EventSetTimer(g_timer_sec);
   Print("CommandListener iniciado. Files=", g_files_dir);
+  WS_Connect();
   return(INIT_SUCCEEDED);
 }
 
 void OnDeinit(const int reason)
 {
   EventKillTimer();
+  WS_Close();
 }
 
 void OnTimer()
 {
-  string path,id,type; string params[]; string data[]; string msg="";
-  if(!ReadCommand(path,id,type,params)) return;
-  bool ok = Dispatch(type, params, msg, data);
-  WriteResp(id, ok, msg, data);
-  // remove cmd file
-  FileDelete(path);
+  WS_Pump();
+  // WS-only: Poll socket e processa múltiplas mensagens por tick
+  for(int k=0;k<20;k++)
+  {
+    WS_Pump();
+    // se não houver mais dados, sai cedo
+    // (WS_Pump faz leitura de um frame ou reconecta)
+    // sem Files fallback
+  }
 }

@@ -35,11 +35,7 @@ export function registerTerminalControlCommands(program: Command) {
         console.log(hints.join('\n'));
       }
       if (!running) {
-        console.log(
-          chalk.yellow(
-            '[terminal] Processo não confirmado. Se a janela não estiver aberta, execute o run-terminal.ps1 no data_dir; depois rode mtcli events ping.'
-          )
-        );
+        console.log(chalk.yellow('[terminal] Processo não confirmado. Se a janela não estiver aberta, execute o run-terminal.ps1 no data_dir.'));
         return;
       }
       console.log(chalk.green('[terminal] Terminal iniciado.'));

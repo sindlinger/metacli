@@ -114,6 +114,20 @@ export class ProjectStore {
   async show(): Promise<ProjectsFile> {
     return this.load();
   }
+
+  // Versão síncrona para leitura rápida (ex.: renderizar status no help).
+  useLastSync(): ProjectInfo | null {
+    try {
+      if (!fs.existsSync(PROJECTS_FILE)) return null;
+      const raw = fs.readFileSync(PROJECTS_FILE, 'utf8');
+      if (!raw.trim()) return null;
+      const file = JSON.parse(raw) as ProjectsFile;
+      if (!file.last_project) return null;
+      return file.projects[file.last_project] || null;
+    } catch {
+      return null;
+    }
+  }
 }
 
 export function requireField<T>(value: T | undefined, message: string): T {

@@ -23,7 +23,15 @@ export type TargetKind = 'Indicators' | 'Experts';
 function buildRelative(name: string, kind: TargetKind): string {
   const stripped = stripPrefix(name.trim());
   let rel = stripped.replace(/\//g, '\\');
-  if (!rel.toLowerCase().startsWith(kind.toLowerCase())) {
+  const kindLower = kind.toLowerCase();
+  const relLower = rel.toLowerCase();
+  if (relLower.startsWith(kindLower)) {
+    // garante separador após o nome da pasta (caso o usuário tenha digitado "IndicatorsPOC...")
+    const after = rel.slice(kind.length);
+    if (!after.startsWith('\\') && after.length > 0) {
+      rel = `${kind}\\${after.replace(/^\\+/, '')}`;
+    }
+  } else {
     rel = `${kind}\\${rel}`;
   }
   rel = ensureExt(rel);

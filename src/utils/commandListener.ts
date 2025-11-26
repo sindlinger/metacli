@@ -136,6 +136,19 @@ export async function startTerminalWindows(terminalPath: string, dataDir: string
   if (!isWin && !isWsl) return;
   // garante credenciais atualizadas antes de subir
   await ensureAccountInIni(dataDir).catch(() => {});
+
+  // garante profile mtcli-auto existindo (copia da Default)
+  const profileName = 'mtcli-auto';
+  const profilesDir = path.join(dataDir, 'Profiles');
+  const defaultProfile = path.join(profilesDir, 'Default');
+  const targetProfile = path.join(profilesDir, profileName);
+  if (!(await fs.pathExists(targetProfile))) {
+    if (await fs.pathExists(defaultProfile)) {
+      await fs.copy(defaultProfile, targetProfile, { overwrite: false, errorOnExist: false });
+    } else {
+      await fs.ensureDir(targetProfile);
+    }
+  }
   const termWin = await toWindowsPath(terminalPath);
   const dpWin = await toWindowsPath(dataDir);
   const cfgWin = await toWindowsPath(path.join(dataDir, 'Config', 'common.ini'));
@@ -165,7 +178,8 @@ $argsList = @(
   '${expertArg}',
   '${symbolArg}',
   '${periodArg}',
-  '${templateArg}'
+  '${templateArg}',
+  '/profile:${escapeForPwshPath(profileName)}'
   ${login && password ? `,'/login:${escapeForPwshPath(login)}','/password:${escapeForPwshPath(password)}'` : ''}
   ${server ? `,'/server:${escapeForPwshPath(server)}'` : ''}
   )

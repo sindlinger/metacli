@@ -20,6 +20,19 @@ export async function loadStatus(info: ProjectInfo): Promise<StatusData> {
   return (await fs.readJson(file).catch(() => ({}))) as StatusData;
 }
 
+// Versão síncrona para renderização de help/status
+export function loadStatusSync(info: ProjectInfo): StatusData {
+  try {
+    const file = statusPath(info);
+    if (!fs.existsSync(file)) return {};
+    const raw = fs.readFileSync(file, 'utf8');
+    if (!raw.trim()) return {};
+    return JSON.parse(raw) as StatusData;
+  } catch {
+    return {};
+  }
+}
+
 export async function saveStatus(info: ProjectInfo, patch: Partial<StatusData>): Promise<void> {
   const file = statusPath(info);
   const current = (await loadStatus(info)) || {};

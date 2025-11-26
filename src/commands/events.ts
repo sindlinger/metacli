@@ -73,15 +73,6 @@ export function registerEventsCommands(program: Command) {
     });
 
   events
-    .command('ping')
-    .option('--project <id>')
-    .action(async (opts) => {
-      const info = await store.useOrThrow(opts.project);
-      await sendListenerCommand(info, 'PING', [], { timeoutMs: 4000, ensureRunning: true, allowRestart: false });
-      console.log(chalk.green('[events] PING ok'));
-    });
-
-  events
     .command('clear')
     .description('Apaga logs do data_dir/Logs')
     .option('--project <id>')
