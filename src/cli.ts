@@ -21,7 +21,15 @@ import { registerConfigCommands } from './commands/terminal.js';
 import { registerVerifyCommands } from './commands/verify.js';
 import { registerLogsCommands } from './commands/logs.js';
 import { registerDucascopyCommands } from './commands/ducascopy.js';
+import { registerCompileCommands } from './commands/compile.js';
+import { registerHealthCommand } from './commands/health.js';
+import { registerOpenTerminalCommand } from './commands/openTerminal.js';
+import { registerCloseTerminalCommand } from './commands/closeTerminal.js';
+import { registerLaunchCmd } from './commands/launchCmd.js';
 import { registerProjectCommands } from './commands/project.js';
+import { registerPingCommand } from './commands/ping.js';
+import { registerActivateCommand } from './commands/activate.js';
+import { registerDevCommand } from './commands/dev.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -35,24 +43,6 @@ async function main() {
     .version(packageJson.version || '0.0.0')
     .showHelpAfterError();
   program.configureHelp({ sortSubcommands: false });
-
-  program.addHelpText(
-    'beforeAll',
-    '\n' +
-      chalk.bold.cyan('Comandos mais usados (atalhos rápidos)') +
-      '\n  ' +
-      [
-        `${chalk.green('init')}`,
-        `${chalk.green('compile')}`,
-        `${chalk.green('run')}`,
-        `${chalk.green('chart')} (${chalk.gray('capture/list/objects')})`,
-        `${chalk.green('logs')}`,
-        `${chalk.green('verify')}`,
-        `${chalk.green('config')} (${chalk.gray('paths/ls/exists')})`,
-        `${chalk.green('tester')}`,
-      ].join('  ') +
-      '\n'
-  );
 
   registerInitCommand(program);
   registerGlobalsCommands(program);
@@ -68,6 +58,14 @@ async function main() {
   registerIndicatorCommands(program);
   registerExpertCommands(program);
   registerTesterCommands(program);
+  registerCompileCommands(program);
+  registerHealthCommand(program);
+  registerOpenTerminalCommand(program);
+  registerCloseTerminalCommand(program);
+  registerPingCommand(program);
+  registerLaunchCmd(program);
+  registerActivateCommand(program);
+  registerDevCommand(program);
   registerGpuCommands(program);
   registerUtilsCommands(program);
   registerProjectCommands(program);

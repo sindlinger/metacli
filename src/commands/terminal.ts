@@ -2,9 +2,23 @@ import { Command } from 'commander';
 import path from 'path';
 import fs from 'fs-extra';
 import chalk from 'chalk';
-import { ProjectStore, projectsFilePath } from '../config/projectStore.js';
+import { ProjectStore, projectsFilePath, repoRoot, ProjectDefaults } from '../config/projectStore.js';
 import { runCommand } from '../utils/shell.js';
 import { normalizePath } from '../utils/paths.js';
+import {
+  killTerminalIfRunning,
+  killTerminalWindows,
+  killTerminalByDatapath,
+  startTerminalWindows,
+  isTerminalRunning,
+  ensureCommandListenerCompiled,
+} from '../utils/commandListener.js';
+import { collectAuthHints } from '../utils/logs.js';
+import { sendListenerCommand } from '../utils/listenerProtocol.js';
+import { deployFactoryConfig, deployFactoryTemplates, ensureCommandListenerStartup, ensureAccountInIni } from '../utils/factoryAssets.js';
+import { recordHealth } from '../utils/listenerGuard.js';
+import fsExtra from 'fs-extra';
+import { provisionTerminalFromBase } from '../utils/terminalProvision.js';
 
 function iniSet(filePath: string, section: string, key: string, value: string) {
   let lines: string[] = [];
@@ -59,6 +73,84 @@ function buildArgs(opts: any) {
   if (opts.datapath) args.push(`/datapath:${opts.datapath}`);
   return args;
 }
+
+async function ensureStructure(dataDir: string) {
+  const folders = [
+    'Bases',
+    'Config',
+    'Logs',
+    'MQL5',
+    'Profiles',
+    'Templates',
+    'Tester',
+    path.join('MQL5', 'Experts'),
+    path.join('MQL5', 'Indicators'),
+    path.join('MQL5', 'Scripts'),
+    path.join('MQL5', 'Include'),
+    path.join('MQL5', 'Files'),
+    path.join('MQL5', 'Images'),
+    path.join('MQL5', 'Libraries'),
+    path.join('MQL5', 'Logs'),
+    path.join('MQL5', 'Presets'),
+    path.join('MQL5', 'Profiles', 'Charts'),
+    path.join('MQL5', 'Profiles', 'Templates'),
+    path.join('MQL5', 'Profiles', 'SymbolSets'),
+    path.join('MQL5', 'Profiles', 'Tester'),
+    path.join('Tester', 'logs'),
+    path.join('Tester', 'Cache'),
+  ];
+  for (const f of folders) {
+    await fs.ensureDir(path.join(dataDir, f));
+  }
+}
+
+async function softActivate(info: any, defaults: ProjectDefaults) {
+  if (!info.data_dir || !info.terminal) {
+    throw new Error('Projeto sem terminal/data_dir configurados. Rode mtcli init primeiro.');
+  }
+
+  await deployFactoryConfig(info.data_dir);
+  await deployFactoryTemplates(info.data_dir);
+  await ensureCommandListenerStartup(info.data_dir, defaults);
+  await ensureAccountInIni(info.data_dir).catch(() => {});
+  await ensureCommandListenerCompiled(info.data_dir).catch(() => {});
+  await ensureStructure(info.data_dir);
+
+  await killTerminalByDatapath(info.data_dir).catch(() => {});
+  await killTerminalIfRunning(info.terminal).catch(() => {});
+  await killTerminalWindows(info.terminal).catch(() => {});
+  await startTerminalWindows(info.terminal, info.data_dir);
+  await new Promise((r) => setTimeout(r, 7000));
+
+  const running = await isTerminalRunning(info.terminal);
+  const authHints = collectAuthHints(info.data_dir, 40);
+  if (authHints.length) {
+    console.log(chalk.gray('[activate] Pistas de autenticação nos logs:'));
+    console.log(authHints.join('\n'));
+  }
+  if (!running) {
+    console.log(
+      chalk.yellow(
+        '[activate] Processo não confirmado. Se a janela não estiver aberta, execute o run-terminal.ps1 no data_dir; depois rode mtcli ping.'
+      )
+    );
+    return;
+  }
+  try {
+    await sendListenerCommand(info, 'PING', [], { timeoutMs: 4000, ensureRunning: true, allowRestart: false });
+    await recordHealth(info);
+    console.log(chalk.green('[activate] Terminal ativo e CommandListener online (PING ok).'));
+  } catch {
+    console.log(
+      chalk.yellow(
+        '[activate] Terminal ativo, mas CommandListener não respondeu. Abra o terminal se necessário e rode mtcli ping.'
+      )
+    );
+  }
+}
+
+// export for reuse by init
+export { softActivate };
 
 function renderConfigTemplate(opts: any) {
   const lines: string[] = [];
@@ -301,7 +393,7 @@ async function statExists(target: string, type: 'file' | 'dir' | 'any' = 'any') 
 }
 
 export function commonIniPath(dataDir: string) {
-  return path.join(dataDir, 'config', 'common.ini');
+  return path.join(dataDir, 'Config', 'common.ini');
 }
 
 function testerIniPath(dataDir: string, file?: string) {
@@ -362,6 +454,24 @@ export function registerConfigCommands(program: Command) {
         const mark = r.exists ? chalk.green('✓') : chalk.red('✗');
         console.log(`${mark} ${r.label.padEnd(longest)}  ${r.value}`);
       });
+    });
+
+  term
+    .command('activate')
+    .description('Ativa projeto já iniciado: reaplica arquivos de fábrica, credenciais e relança terminal')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      const defaults: ProjectDefaults = info.defaults || {
+        symbol: 'EURUSD',
+        period: 'M1',
+        subwindow: 1,
+        indicator: 'Examples\\ZigZag',
+        expert: 'Examples\\MACD\\MACD Sample',
+        portable: true,
+        profile: null,
+      };
+      await softActivate(info, defaults);
     });
 
   term
