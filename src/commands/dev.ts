@@ -9,6 +9,7 @@ import { registerIndicatorCommands, registerExpertCommands, registerChartCommand
 import { registerSnapshotCommands } from './snapshot.js';
 import { registerEventsCommands } from './events.js';
 import { registerLogsCommands } from './logs.js';
+import { saveStatus } from '../utils/status.js';
 
 const store = new ProjectStore();
 
@@ -43,4 +44,27 @@ export function registerDevCommand(program: Command) {
   registerSnapshotCommands(dev);
   registerEventsCommands(dev);
   registerLogsCommands(dev);
+
+  dev
+    .command('set-indicator')
+    .description('Define o indicador atual de trabalho (nome/símbolo/período) para comandos dev')
+    .requiredOption('-n, --name <indicator>', 'Nome do indicador (ex.: Indicators\\ReversalWave_OpenCL)')
+    .option('-s, --symbol <symbol>', 'Símbolo default (ex.: EURUSD)')
+    .option('-p, --period <period>', 'Período default (ex.: M1)')
+    .option('--project <id>', 'Projeto alvo')
+    .action(async (opts) => {
+      const info = await store.useOrThrow(opts.project);
+      await saveStatus(info, {
+        current_indicator: opts.name,
+        current_symbol: opts.symbol ?? info.defaults?.symbol,
+        current_period: opts.period ?? info.defaults?.period,
+      });
+      console.log(
+        chalk.green(
+          `[dev] Indicador atual definido: ${opts.name} (${opts.symbol ?? info.defaults?.symbol ?? 'sym?'}, ${
+            opts.period ?? info.defaults?.period ?? 'tf?'
+          })`
+        )
+      );
+    });
 }

@@ -9,6 +9,7 @@ import { sendListenerCommand } from '../utils/listenerProtocol.js';
 import { toWslPath } from '../utils/paths.js';
 import { execa } from 'execa';
 import { resolveTarget } from '../utils/target.js';
+import { loadStatus, saveStatus } from '../utils/status.js';
 
 const store = new ProjectStore();
 
@@ -33,18 +34,21 @@ export function registerWatchCommands(program: Command) {
     .option('--template <tpl>', 'Template para EA (default Default.tpl)')
     .option('--project <id>', '(LEGADO; evite, usa ativo)')
     .option('--debounce <ms>', 'Atraso entre detecção e recompilar', (v) => parseInt(v, 10), 400)
+    .option('--set-current', 'Após iniciar, define este indicador/EA como “atual” para comandos dev')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
       if (!info.metaeditor) throw new Error('MetaEditor não configurado.');
       if (!info.data_dir) throw new Error('data_dir não configurado.');
 
-      const target = resolveTarget(info, { file: opts.file, indicator: opts.indicator, expert: opts.expert });
+      const status = await loadStatus(info);
+      const indicatorPref = opts.indicator ?? (opts.expert ? undefined : status.current_indicator);
+      const target = resolveTarget(info, { file: opts.file, indicator: indicatorPref, expert: opts.expert });
       const isIndicator = target.kind === 'Indicators';
       const isExpert = target.kind === 'Experts';
       const attachName = target.attachName;
       const file = target.file;
-      const symbol = opts.symbol || info.defaults?.symbol || 'EURUSD';
-      const period = opts.period || info.defaults?.period || 'M1';
+      const symbol = opts.symbol || status.current_symbol || info.defaults?.symbol || 'EURUSD';
+      const period = opts.period || status.current_period || info.defaults?.period || 'M1';
       const sub = typeof opts.subwindow === 'number' && Number.isFinite(opts.subwindow) ? opts.subwindow : info.defaults?.subwindow || 1;
 
       const compile = async () => {
@@ -78,6 +82,15 @@ export function registerWatchCommands(program: Command) {
       console.log(chalk.cyan(`[watch] observando ${file} ... Ctrl+C para sair`));
       await compile();
       await reattach();
+
+      if (opts.setCurrent) {
+        await saveStatus(info, {
+          current_indicator: isIndicator ? target.relNoExt : status.current_indicator,
+          current_symbol: symbol,
+          current_period: period,
+        });
+        console.log(chalk.gray(`[watch] indicador atual definido: ${target.relNoExt} (${symbol} ${period})`));
+      }
 
       fs.watch(path.dirname(file), { persistent: true }, (event, fname) => {
         if (!fname) return;

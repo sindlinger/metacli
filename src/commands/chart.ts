@@ -8,15 +8,16 @@ import { sendListenerCommand } from '../utils/listenerProtocol.js';
 import { registerObjectsSubcommands } from './objects.js';
 import { execa } from 'execa';
 import { resolveTarget } from '../utils/target.js';
+import { loadStatus } from '../utils/status.js';
 
 const store = new ProjectStore();
 
-function resolveSymbol(info: ProjectInfo, fallback?: string) {
-  return fallback ?? (info.defaults?.symbol as string | undefined) ?? 'EURUSD';
+function resolveSymbol(info: ProjectInfo, fallback?: string, statusSym?: string) {
+  return fallback ?? statusSym ?? (info.defaults?.symbol as string | undefined) ?? 'EURUSD';
 }
 
-function resolvePeriod(info: ProjectInfo, fallback?: string) {
-  return fallback ?? (info.defaults?.period as string | undefined) ?? 'M1';
+function resolvePeriod(info: ProjectInfo, fallback?: string, statusPer?: string) {
+  return fallback ?? statusPer ?? (info.defaults?.period as string | undefined) ?? 'M1';
 }
 
 function resolveSubwindow(info: ProjectInfo, fallback?: number) {
@@ -24,8 +25,8 @@ function resolveSubwindow(info: ProjectInfo, fallback?: number) {
   return typeof value === 'number' && !Number.isNaN(value) ? value : 1;
 }
 
-function resolveIndicatorName(info: ProjectInfo, fallback?: string) {
-  const value = fallback ?? (info.defaults?.indicator as string | undefined) ?? 'Examples\\ZigZag';
+function resolveIndicatorName(info: ProjectInfo, fallback?: string, statusInd?: string) {
+  const value = fallback ?? statusInd ?? (info.defaults?.indicator as string | undefined) ?? 'Examples\\ZigZag';
   return value;
 }
 
@@ -558,9 +559,10 @@ export function registerIndicatorCommands(program: Command) {
       if (!info.data_dir) {
         throw new Error('Projeto sem data_dir. Configure via mtcli project save --data-dir ...');
       }
-      const symbol = resolveSymbol(info, opts.symbol);
-      const period = resolvePeriod(info, opts.period);
-      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
+      const status = await loadStatus(info);
+      const symbol = resolveSymbol(info, opts.symbol, status.current_symbol);
+      const period = resolvePeriod(info, opts.period, status.current_period);
+      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg, status.current_indicator);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
@@ -582,9 +584,10 @@ export function registerIndicatorCommands(program: Command) {
       if (!info.data_dir) {
         throw new Error('Projeto sem data_dir configurado.');
       }
-      const symbol = resolveSymbol(info, opts.symbol);
-      const period = resolvePeriod(info, opts.period);
-      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
+      const status = await loadStatus(info);
+      const symbol = resolveSymbol(info, opts.symbol, status.current_symbol);
+      const period = resolvePeriod(info, opts.period, status.current_period);
+      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg, status.current_indicator);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
@@ -610,8 +613,9 @@ export function registerIndicatorCommands(program: Command) {
     .option('--project <id>')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
-      const symbol = resolveSymbol(info, opts.symbol);
-      const period = resolvePeriod(info, opts.period);
+      const status = await loadStatus(info);
+      const symbol = resolveSymbol(info, opts.symbol, status.current_symbol);
+      const period = resolvePeriod(info, opts.period, status.current_period);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
@@ -629,8 +633,9 @@ export function registerIndicatorCommands(program: Command) {
     .option('--project <id>')
     .action(async (opts) => {
       const info = await store.useOrThrow(opts.project);
-      const symbol = resolveSymbol(info, opts.symbol);
-      const period = resolvePeriod(info, opts.period);
+      const status = await loadStatus(info);
+      const symbol = resolveSymbol(info, opts.symbol, status.current_symbol);
+      const period = resolvePeriod(info, opts.period, status.current_period);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       const index = typeof opts.index === 'number' && Number.isFinite(opts.index) ? opts.index : 0;
       if (!symbol || !period) {
@@ -651,9 +656,10 @@ export function registerIndicatorCommands(program: Command) {
     .option('--project <id>')
     .action(async (nameArg, opts) => {
       const info = await store.useOrThrow(opts.project);
-      const symbol = resolveSymbol(info, opts.symbol);
-      const period = resolvePeriod(info, opts.period);
-      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
+      const status = await loadStatus(info);
+      const symbol = resolveSymbol(info, opts.symbol, status.current_symbol);
+      const period = resolvePeriod(info, opts.period, status.current_period);
+      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg, status.current_indicator);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       if (!symbol || !period) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
@@ -671,12 +677,14 @@ export function registerIndicatorCommands(program: Command) {
     .option('--subwindow <index>', 'Subjanela', (val) => parseInt(val, 10))
     .option('--window <n>', 'Qtd de barras a inspecionar (default 64, máx 2048)', (val) => parseInt(val, 10))
     .option('--csv <file>', 'Salva buffers em CSV dentro de MQL5/Files (ex.: buffers.csv)')
+    .option('--open', 'Após gerar, imprime o CSV (primeiras 50 linhas)')
     .option('--project <id>')
     .action(async (nameArg, opts) => {
       const info = await store.useOrThrow(opts.project);
-      const symbol = resolveSymbol(info, opts.symbol);
-      const period = resolvePeriod(info, opts.period);
-      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
+      const status = await loadStatus(info);
+      const symbol = resolveSymbol(info, opts.symbol, status.current_symbol);
+      const period = resolvePeriod(info, opts.period, status.current_period);
+      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg, status.current_indicator);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       const window = typeof opts.window === 'number' && Number.isFinite(opts.window) ? opts.window : null;
       const csv = opts.csv as string | undefined;
@@ -684,6 +692,17 @@ export function registerIndicatorCommands(program: Command) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
       }
       await sendListenerCommand(info, 'IND_BUFFERS', [symbol, period, subwindow, indicatorName, window, csv], { timeoutMs: 8000 });
+      if (csv && opts.open) {
+        const filePath = info.data_dir ? path.join(info.data_dir, 'MQL5', 'Files', csv) : csv;
+        if (await fs.pathExists(filePath)) {
+          const content = await fs.readFile(filePath, 'utf8');
+          const lines = content.split(/\r?\n/).slice(0, 50);
+          console.log(chalk.gray(`[indicator] preview ${csv} (primeiras ${lines.length} linhas)`));
+          console.log(lines.join('\n'));
+        } else {
+          console.log(chalk.yellow(`[indicator] CSV não encontrado em ${filePath}`));
+        }
+      }
     });
 
   indicator
@@ -701,9 +720,10 @@ export function registerIndicatorCommands(program: Command) {
       if (!info.data_dir) {
         throw new Error('Projeto sem data_dir configurado.');
       }
-      const symbol = resolveSymbol(info, opts.symbol);
-      const period = resolvePeriod(info, opts.period);
-      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
+      const status = await loadStatus(info);
+      const symbol = resolveSymbol(info, opts.symbol, status.current_symbol);
+      const period = resolvePeriod(info, opts.period, status.current_period);
+      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg, status.current_indicator);
       const subwindow = resolveSubwindow(info, opts.subwindow);
       const wait = Number.isFinite(opts.wait) ? Math.max(0, opts.wait) : 600;
       if (!symbol || !period) {

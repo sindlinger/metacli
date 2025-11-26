@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { ProjectInfo } from '../config/projectStore.js';
 import { sendListenerCommand } from './listenerProtocol.js';
+import { saveStatus } from './status.js';
 
 /**
  * Verifica se o CommandListener responde ao PING sem reiniciar terminal.
@@ -23,6 +24,7 @@ async function writeHeartbeat(info: ProjectInfo) {
   const now = new Date().toISOString();
   const payload = { last_ping_ok: now };
   await fs.outputJson(statusPath, payload, { spaces: 2 });
+  await saveStatus(info, { last_ping_ok: now });
 }
 
 export async function recordHealth(info: ProjectInfo): Promise<void> {
