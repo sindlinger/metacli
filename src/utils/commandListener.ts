@@ -61,6 +61,7 @@ export async function ensureCommandListenerCompiled(dataDir: string): Promise<vo
   const metaeditor = path.join(dataDir, 'MetaEditor64.exe');
   const src = path.join(dataDir, 'MQL5', 'Experts', 'CommandListenerEA.mq5');
   const dst = path.join(dataDir, 'MQL5', 'Experts', 'CommandListenerEA.ex5');
+  const fallbackDst = path.join(dataDir, 'Experts', 'CommandListenerEA.ex5'); // às vezes o MetaEditor salva aqui
   if (!(await fs.pathExists(src))) {
     throw new Error(`CommandListenerEA.mq5 não encontrado em ${src}`);
   }
@@ -68,7 +69,12 @@ export async function ensureCommandListenerCompiled(dataDir: string): Promise<vo
   const execPath = os.platform() === 'linux' ? toWslPath(metaeditor) : metaeditor;
   console.log(chalk.gray('[cmdlistener] compilando CommandListenerEA...'));
   const res = await execa(execPath, args, { stdio: 'inherit', windowsHide: false, reject: false });
-  const ex5Exists = await fs.pathExists(dst);
+  let ex5Exists = await fs.pathExists(dst);
+  if (!ex5Exists && (await fs.pathExists(fallbackDst))) {
+    // copia para o lugar correto
+    await fs.copy(fallbackDst, dst, { overwrite: true });
+    ex5Exists = true;
+  }
   if (!ex5Exists) {
     throw new Error(`CommandListenerEA.ex5 não gerado (exitCode=${res.exitCode}).`);
   }
