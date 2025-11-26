@@ -1,17 +1,23 @@
 import path from 'path';
 import { ProjectInfo } from '../config/projectStore.js';
+import { toWinPath } from './paths.js';
 
+// Sempre devolve caminhos em formato Windows, pois o MetaEditor é Windows-only.
 export function resolveMetaeditorArgs(info: ProjectInfo, file: string, log?: string): string[] {
   const fileAbs = path.isAbsolute(file) ? file : path.resolve(file);
-  const args: string[] = [`/compile:${fileAbs}`];
+  const args: string[] = [`/compile:${toWinPath(fileAbs)}`];
+  // Força usar a pasta de dados local (portable) quando configurado no projeto.
+  if (info.defaults?.portable) {
+    args.push('/portable');
+  }
   if (log) {
     const logAbs = path.isAbsolute(log) ? log : path.resolve(log);
-    args.push(`/log:${logAbs}`);
+    args.push(`/log:${toWinPath(logAbs)}`);
   }
   if (info.data_dir) {
-    // ajuda o MetaEditor a achar includes/libs corretos
-    args.push(`/include:${path.join(info.data_dir, 'MQL5', 'Include')}`);
-    args.push(`/library:${path.join(info.data_dir, 'MQL5', 'Libraries')}`);
+    // Aponta para a raiz MQL5; o MetaEditor acrescenta \Include internamente
+    args.push(`/include:${toWinPath(path.join(info.data_dir, 'MQL5'))}`);
+    args.push(`/library:${toWinPath(path.join(info.data_dir, 'MQL5', 'Libraries'))}`);
   }
   return args;
 }

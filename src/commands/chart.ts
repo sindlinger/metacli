@@ -7,15 +7,16 @@ import { normalizePath, platformIsWindows, resolvePowerShell } from '../utils/pa
 import { sendListenerCommand } from '../utils/listenerProtocol.js';
 import { registerObjectsSubcommands } from './objects.js';
 import { execa } from 'execa';
+import { resolveTarget } from '../utils/target.js';
 
 const store = new ProjectStore();
 
 function resolveSymbol(info: ProjectInfo, fallback?: string) {
-  return fallback || (info.defaults?.symbol as string | undefined);
+  return fallback ?? (info.defaults?.symbol as string | undefined) ?? 'EURUSD';
 }
 
 function resolvePeriod(info: ProjectInfo, fallback?: string) {
-  return fallback || (info.defaults?.period as string | undefined);
+  return fallback ?? (info.defaults?.period as string | undefined) ?? 'M1';
 }
 
 function resolveSubwindow(info: ProjectInfo, fallback?: number) {
@@ -24,19 +25,23 @@ function resolveSubwindow(info: ProjectInfo, fallback?: number) {
 }
 
 function resolveIndicatorName(info: ProjectInfo, fallback?: string) {
-  const value = fallback ?? (info.defaults?.indicator as string | undefined);
-  if (!value) {
-    throw new Error('Defina --name ou configure um padrão via `mtcli project defaults set --indicator <nome>`.');
-  }
+  const value = fallback ?? (info.defaults?.indicator as string | undefined) ?? 'Examples\\ZigZag';
   return value;
 }
 
 function resolveExpertName(info: ProjectInfo, fallback?: string) {
-  const value = fallback ?? (info.defaults?.expert as string | undefined);
-  if (!value) {
-    throw new Error('Defina --expert ou configure um padrão via `mtcli project defaults set --expert <nome>`.');
-  }
+  const value = fallback ?? (info.defaults?.expert as string | undefined) ?? 'Examples\\MACD\\MACD Sample';
   return value;
+}
+
+function normalizeIndicatorAttach(info: ProjectInfo, name: string): string {
+  const target = resolveTarget(info, { indicator: name });
+  return target.relNoExt; // MT5 attach usa caminho relativo sem extensão
+}
+
+function normalizeExpertAttach(info: ProjectInfo, name: string): string {
+  const target = resolveTarget(info, { expert: name });
+  return target.relNoExt;
 }
 
 function formatTimestamp(date: Date): string {
@@ -71,7 +76,8 @@ async function attachIndicator(
   indicatorName: string,
   subwindow: number
 ) {
-  await sendListenerCommand(info, 'ATTACH_IND_FULL', [symbol, period, indicatorName, subwindow], { timeoutMs: 8000 });
+  const name = normalizeIndicatorAttach(info, indicatorName);
+  await sendListenerCommand(info, 'ATTACH_IND_FULL', [symbol, period, name, subwindow], { timeoutMs: 8000 });
 }
 
 async function detachIndicator(
@@ -81,7 +87,8 @@ async function detachIndicator(
   indicatorName: string,
   subwindow: number
 ) {
-  await sendListenerCommand(info, 'DETACH_IND_FULL', [symbol, period, indicatorName, subwindow], { timeoutMs: 8000 });
+  const name = normalizeIndicatorAttach(info, indicatorName);
+  await sendListenerCommand(info, 'DETACH_IND_FULL', [symbol, period, name, subwindow], { timeoutMs: 8000 });
 }
 
 async function attachExpert(
@@ -91,7 +98,8 @@ async function attachExpert(
   expert: string,
   template: string
 ) {
-  await sendListenerCommand(info, 'ATTACH_EA_FULL', [symbol, period, expert, template], { timeoutMs: 10000 });
+  const name = normalizeExpertAttach(info, expert);
+  await sendListenerCommand(info, 'ATTACH_EA_FULL', [symbol, period, name, template], { timeoutMs: 10000 });
 }
 
 async function detachExpert(info: ProjectInfo, symbol: string, period: string) {
@@ -651,6 +659,27 @@ export function registerIndicatorCommands(program: Command) {
         throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
       }
       await sendListenerCommand(info, 'IND_HANDLE', [symbol, period, subwindow, indicatorName], { timeoutMs: 6000 });
+    });
+
+  indicator
+    .command('buffers')
+    .description('Mostra estatísticas rápidas dos buffers do indicador anexado (CopyBuffer, plot/empty/min/max)')
+    .argument('[name]')
+    .option('-s, --symbol <symbol>')
+    .option('-p, --period <period>')
+    .option('-n, --name <name>')
+    .option('--subwindow <index>', 'Subjanela', (val) => parseInt(val, 10))
+    .option('--project <id>')
+    .action(async (nameArg, opts) => {
+      const info = await store.useOrThrow(opts.project);
+      const symbol = resolveSymbol(info, opts.symbol);
+      const period = resolvePeriod(info, opts.period);
+      const indicatorName = resolveIndicatorName(info, opts.name ?? nameArg);
+      const subwindow = resolveSubwindow(info, opts.subwindow);
+      if (!symbol || !period) {
+        throw new Error('Defina --symbol/--period ou configure defaults no projeto.');
+      }
+      await sendListenerCommand(info, 'IND_BUFFERS', [symbol, period, subwindow, indicatorName], { timeoutMs: 8000 });
     });
 
   indicator

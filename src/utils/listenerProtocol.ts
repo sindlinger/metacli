@@ -17,7 +17,8 @@ export interface ListenerCommandResult {
 export interface ListenerCommandOptions {
   timeoutMs?: number;
   pollIntervalMs?: number;
-  ensureRunning?: boolean;
+  ensureRunning?: boolean; // default: true
+  allowRestart?: boolean;  // default: false
 }
 
 function generateCommandId(): string {
@@ -43,10 +44,17 @@ export async function sendListenerCommand(
   if (!info.data_dir) {
     throw new Error('Projeto sem data_dir configurado.');
   }
-  const ensureRunning = options.ensureRunning !== false;
+  const ensureRunning = options.ensureRunning !== false; // default true
+  const allowRestart = options.allowRestart === true;
+  const offlineMsg = 'CommandListener offline. Abra o terminal deste projeto ou rode mtcli init/reload (--restart) para reativar.';
   if (ensureRunning && !(await isListenerRunning(info.terminal))) {
-    console.log(chalk.gray(`[listener] terminal não detectado para ${info.project}. Reiniciando...`));
-    await restartListenerInstance({ project: info.project, profile: info.defaults?.profile ?? undefined });
+    if (allowRestart) {
+      console.log(chalk.gray(`[listener] terminal não detectado para ${info.project}. Reiniciando...`));
+      await restartListenerInstance({ project: info.project, profile: info.defaults?.profile ?? undefined });
+      // após restart, seguir adiante (cmd será gravado no Files)
+    } else {
+      throw new Error(offlineMsg);
+    }
   }
   const cmdId = generateCommandId();
   const dataRoot = normalizePath(info.data_dir);

@@ -2,11 +2,13 @@ import { Command } from 'commander';
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
+import os from 'os';
 import { ProjectStore } from '../config/projectStore.js';
 import { resolveMetaeditorArgs } from '../utils/metaeditor.js';
 import { sendListenerCommand } from '../utils/listenerProtocol.js';
-import { normalizePath } from '../utils/paths.js';
+import { toWslPath } from '../utils/paths.js';
 import { execa } from 'execa';
+import { resolveTarget } from '../utils/target.js';
 
 const store = new ProjectStore();
 
@@ -22,9 +24,9 @@ export function registerWatchCommands(program: Command) {
   program
     .command('watch')
     .description('Vigia um .mq5: ao salvar, compila e reanexa no MT5')
-    .requiredOption('--file <path>', 'Arquivo .mq5 a vigiar (Indicators/ ou Experts/)')
-    .option('-i, --indicator <name>', 'Nome para anexar (se Indicators)')
-    .option('-e, --expert <name>', 'Nome para anexar (se Experts)')
+    .option('--file <path>', 'Arquivo .mq5 a vigiar (Indicators/ ou Experts/)')
+    .option('-i, --indicator <name>', 'Nome/atalho do indicador (pode ser I:ZigZag, ZigZag, ou subpasta)')
+    .option('-e, --expert <name>', 'Nome/atalho do expert (pode ser E:MyEA, MyEA, ou subpasta)')
     .option('-s, --symbol <symbol>', 'Símbolo (default do projeto)')
     .option('-p, --period <period>', 'Período (default do projeto)')
     .option('--subwindow <index>', 'Subjanela do indicador', (val) => parseInt(val, 10))
@@ -35,21 +37,24 @@ export function registerWatchCommands(program: Command) {
       const info = await store.useOrThrow(opts.project);
       if (!info.metaeditor) throw new Error('MetaEditor não configurado.');
       if (!info.data_dir) throw new Error('data_dir não configurado.');
-      const file = normalizePath(opts.file);
-      if (!fs.existsSync(file)) throw new Error(`Arquivo não encontrado: ${file}`);
-      const isIndicator = Boolean(opts.indicator) || file.toLowerCase().includes('indicator');
-      const isExpert = Boolean(opts.expert) || file.toLowerCase().includes('expert');
-      if (isIndicator === isExpert) {
-        throw new Error('Informe --indicator ou --expert para saber como anexar.');
-      }
-      const symbol = opts.symbol || info.defaults?.symbol;
-      const period = opts.period || info.defaults?.period;
+
+      const target = resolveTarget(info, { file: opts.file, indicator: opts.indicator, expert: opts.expert });
+      const isIndicator = target.kind === 'Indicators';
+      const isExpert = target.kind === 'Experts';
+      const attachName = target.attachName;
+      const file = target.file;
+      const symbol = opts.symbol || info.defaults?.symbol || 'EURUSD';
+      const period = opts.period || info.defaults?.period || 'M1';
       const sub = typeof opts.subwindow === 'number' && Number.isFinite(opts.subwindow) ? opts.subwindow : info.defaults?.subwindow || 1;
 
       const compile = async () => {
         const args = resolveMetaeditorArgs(info, file);
+        const metaExec = os.platform() === 'linux' ? toWslPath(info.metaeditor!) : info.metaeditor!;
         console.log(chalk.gray(`[watch] compilando ${file} ...`));
-        await execa(info.metaeditor!, args, { stdio: 'inherit', windowsHide: false });
+        const res = await execa(metaExec, args, { stdio: 'inherit', windowsHide: false, reject: false });
+        if (res.exitCode !== 0) {
+          console.log(chalk.yellow(`[watch] MetaEditor saiu com exitCode=${res.exitCode} (pode ser normal no WSL).`));
+        }
       };
 
       const reattach = async () => {
@@ -57,11 +62,11 @@ export function registerWatchCommands(program: Command) {
           console.log(chalk.yellow('[watch] pulei attach: defina symbol/period')); return;
         }
         if (isIndicator) {
-          await sendListenerCommand(info, 'ATTACH_IND_FULL', [symbol, period, opts.indicator, sub, ''], { timeoutMs: 8000 });
-          console.log(chalk.green(`[watch] indicador reanexado: ${opts.indicator} em ${symbol} ${period}`));
+          await sendListenerCommand(info, 'ATTACH_IND_FULL', [symbol, period, attachName, sub, ''], { timeoutMs: 8000 });
+          console.log(chalk.green(`[watch] indicador reanexado: ${attachName} em ${symbol} ${period}`));
         } else {
-          await sendListenerCommand(info, 'ATTACH_EA_FULL', [symbol, period, opts.expert, opts.template || 'Default.tpl', ''], { timeoutMs: 10000 });
-          console.log(chalk.green(`[watch] expert reanexado: ${opts.expert} em ${symbol} ${period}`));
+          await sendListenerCommand(info, 'ATTACH_EA_FULL', [symbol, period, attachName, opts.template || 'Default.tpl', ''], { timeoutMs: 10000 });
+          console.log(chalk.green(`[watch] expert reanexado: ${attachName} em ${symbol} ${period}`));
         }
       };
 

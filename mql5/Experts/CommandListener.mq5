@@ -310,6 +310,62 @@ bool H_IndHandle(string p[], string &m, string &d[])
   return true;
 }
 
+bool H_IndBuffers(string p[], string &m, string &d[])
+{
+  if(ArraySize(p)<4){ m="params"; return false; }
+  string sym=p[0]; ENUM_TIMEFRAMES tf=TfFromString(p[1]); int sub=SubwindowSafe(p[2]); string name=p[3];
+  long cid=ChartOpen(sym, tf); if(cid==0){ m="ChartOpen"; return false; }
+  long h=ChartIndicatorGet(cid, sub-1, name);
+  if(h==INVALID_HANDLE){ m="handle"; return false; }
+
+  int buffers = (int)IndicatorGetInteger(h, INDICATOR_BUFFERS);
+  int plots   = (int)IndicatorGetInteger(h, INDICATOR_PLOTS);
+
+  // Mapear buffers usados em plots
+  bool usedInPlot[];
+  ArrayResize(usedInPlot, MathMax(buffers, 1));
+  ArrayInitialize(usedInPlot, false);
+  for(int pidx=0; pidx<plots; pidx++)
+  {
+    int lines = (int)PlotIndexGetInteger(h, pidx, PLOT_LINES);
+    for(int l=0; l<lines; l++)
+    {
+      int b = (int)PlotIndexGetInteger(h, pidx, PLOT_LINE_INDEX, l);
+      if(b>=0 && b<buffers) usedInPlot[b]=true;
+    }
+  }
+
+  ArrayResize(d, 0);
+  ArrayResize(d, ArraySize(d)+1); d[ArraySize(d)-1]=StringFormat("buffers=%d plots=%d", buffers, plots);
+
+  // Stats por buffer (amostra curta)
+  for(int i=0;i<buffers;i++)
+  {
+    double buf[];
+    int copied = CopyBuffer(h, i, 0, 64, buf);
+    int empties=0, invalids=0;
+    double minv=DBL_MAX, maxv=-DBL_MAX, firstv=EMPTY_VALUE;
+    for(int k=0;k<copied;k++)
+    {
+      double v=buf[k];
+      bool bad = !MathIsValidNumber(v) || v==EMPTY_VALUE;
+      if(bad){ empties++; invalids+=(v!=EMPTY_VALUE); continue; }
+      if(firstv==EMPTY_VALUE) firstv=v;
+      if(v<minv) minv=v;
+      if(v>maxv) maxv=v;
+    }
+    string line=StringFormat(
+      "buf=%d plot=%s copied=%d empty=%d invalid=%d first=%.6f min=%.6f max=%.6f",
+      i, usedInPlot[i]?"yes":"no", copied, empties, invalids,
+      (firstv==EMPTY_VALUE)?EMPTY_VALUE:firstv,
+      (minv==DBL_MAX)?EMPTY_VALUE:minv,
+      (maxv==-DBL_MAX)?EMPTY_VALUE:maxv
+    );
+    ArrayResize(d, ArraySize(d)+1); d[ArraySize(d)-1]=line;
+  }
+  m="ok"; return true;
+}
+
 bool H_DetachAll(string p[], string &m, string &d[])
 {
   long cid=ChartID();
@@ -749,6 +805,7 @@ bool Dispatch(string type, string params[], string &msg, string &data[])
   if(type=="IND_TOTAL") return H_IndTotal(params,msg,data);
   if(type=="IND_NAME") return H_IndName(params,msg,data);
   if(type=="IND_HANDLE") return H_IndHandle(params,msg,data);
+  if(type=="IND_BUFFERS") return H_IndBuffers(params,msg,data);
   if(type=="ATTACH_EA_FULL") return H_AttachEA(params,msg,data);
   if(type=="DETACH_EA_FULL") return H_DetachEA(params,msg,data);
   if(type=="LIST_CHARTS") return H_ListCharts(params,msg,data);

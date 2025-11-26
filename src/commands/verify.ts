@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import { ProjectStore } from '../config/projectStore.js';
 import { normalizePath } from '../utils/paths.js';
 import { commonIniPath } from './terminal.js';
+import { deployFactoryConfig, deployFactoryTemplates, ensureCommandListenerStartup } from '../utils/factoryAssets.js';
 
 const store = new ProjectStore();
 
@@ -41,8 +42,9 @@ async function verifyPaths(items: VerifyItem[]) {
 export function registerVerifyCommands(program: Command) {
   program
     .command('verify')
-    .description('Lista presença das pastas/arquivos essenciais do MT5 (data_dir do projeto ativo)')
-    .action(async () => {
+    .description('Lista (e opcionalmente corrige) a estrutura essencial do MT5 (data_dir do projeto ativo)')
+    .option('--fix', 'Criar pastas/arquivos faltantes e aplicar factory defaults', false)
+    .action(async (opts) => {
       const info = await store.useOrThrow();
       if (!info.data_dir) throw new Error('data_dir não configurado.');
       const base = normalizePath(info.data_dir);
@@ -80,11 +82,35 @@ export function registerVerifyCommands(program: Command) {
         { label: 'Tester logs', path: path.join(base, 'Tester', 'logs'), kind: 'dir' },
         { label: 'Tester Cache', path: path.join(base, 'Tester', 'Cache'), kind: 'dir' },
       ];
+
+      if (opts.fix) {
+        for (const item of expected) {
+          if (item.kind === 'dir') {
+            await fs.ensureDir(item.path);
+          } else {
+            if (!(await fs.pathExists(item.path))) {
+              await fs.ensureDir(path.dirname(item.path));
+              await fs.writeFile(item.path, '');
+            }
+          }
+        }
+        await deployFactoryConfig(base);
+        await deployFactoryTemplates(base);
+        await ensureCommandListenerStartup(base, info.defaults);
+        const originFile = path.join(base, 'origin.txt');
+        if (!(await fs.pathExists(originFile))) {
+          await fs.writeFile(originFile, `project=${info.project}\ncreated=${new Date().toISOString()}\n`, 'utf8');
+        }
+      }
+
       const missing = await verifyPaths(expected);
       if (missing === 0) {
         console.log(chalk.green('\nEstrutura OK.'));
       } else {
         console.log(chalk.yellow(`\nItens ausentes: ${missing}.`));
+        if (!opts.fix) {
+          console.log(chalk.gray('Use mtcli verify --fix para criar/copiar itens de fábrica.'));
+        }
       }
     });
 }

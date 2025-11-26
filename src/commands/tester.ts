@@ -5,9 +5,26 @@ import chalk from 'chalk';
 import { ProjectStore, repoRoot } from '../config/projectStore.js';
 import { normalizePath, toWinPath, toWslPath } from '../utils/paths.js';
 import { runCommand } from '../utils/shell.js';
+import { resolveTarget } from '../utils/target.js';
 
 const store = new ProjectStore();
 const DEFAULT_TESTER_INI = path.join(repoRoot(), 'tester_visual.ini');
+const DEFAULT_SYMBOL = 'EURUSD';
+const DEFAULT_PERIOD = 'M1';
+const DEFAULT_EXPERT = 'Examples\\MACD\\MACD Sample';
+
+function resolveSymbol(info: any, fallback?: string) {
+  return fallback || info.defaults?.symbol || DEFAULT_SYMBOL;
+}
+
+function resolvePeriod(info: any, fallback?: string) {
+  return fallback || info.defaults?.period || DEFAULT_PERIOD;
+}
+
+function resolveExpertPath(info: any, name?: string) {
+  const target = resolveTarget(info, { expert: name || info.defaults?.expert || DEFAULT_EXPERT });
+  return target.relNoExt + '.ex5';
+}
 
 function iniSet(filePath: string, section: string, key: string, value: string) {
   let lines: string[] = [];
@@ -90,9 +107,9 @@ export function registerTesterCommands(program: Command) {
   tester
     .command('quick')
     .description('Gera ini rápido e roda tester (visual opcional)')
-    .requiredOption('--expert <name>', 'Expert em Experts\\')
-    .requiredOption('--symbol <symbol>', 'Símbolo')
-    .requiredOption('--period <period>', 'Período (H1, M15, etc.)')
+    .option('--expert <name>', 'Expert em Experts\\ (default do projeto ou padrão)')
+    .option('--symbol <symbol>', 'Símbolo (default do projeto ou EURUSD)')
+    .option('--period <period>', 'Período (H1, M15, etc.; default projeto ou M1)')
     .option('--from <YYYY.MM.DD>', 'Data inicial')
     .option('--to <YYYY.MM.DD>', 'Data final')
     .option('--visual', 'Modo visual', false)
@@ -108,13 +125,13 @@ export function registerTesterCommands(program: Command) {
       if (!info.data_dir) throw new Error('data_dir não configurado.');
       const iniDir = normalizePath(info.data_dir);
       const iniPath = path.join(iniDir, 'mtcli_quick.ini');
-      const expertPath = opts.expert.toLowerCase().endsWith('.ex5') ? opts.expert : `${opts.expert}.ex5`;
+      const expertPath = resolveExpertPath(info, opts.expert);
       const lines = [
         '[Tester]',
         `Expert=Experts\\${expertPath}`,
         'ExpertParameters=',
-        `Symbol=${opts.symbol}`,
-        `Period=${opts.period}`,
+        `Symbol=${resolveSymbol(info, opts.symbol)}`,
+        `Period=${resolvePeriod(info, opts.period)}`,
         `Model=${opts.model}`,
         'Optimization=0',
         'ForwardMode=0',
@@ -140,19 +157,23 @@ export function registerTesterCommands(program: Command) {
   tester
     .command('matrix')
     .description('Roda múltiplas combinações (símbolos/períodos) sequencialmente')
-    .requiredOption('--expert <name>', 'Expert em Experts\\')
-    .requiredOption('--symbols <list>', 'Lista separada por vírgulas')
-    .requiredOption('--periods <list>', 'Lista separada por vírgulas')
+    .option('--expert <name>', 'Expert em Experts\\ (default projeto/padrão)')
+    .option('--symbols <list>', 'Lista separada por vírgulas (default: symbol do projeto)')
+    .option('--periods <list>', 'Lista separada por vírgulas (default: period do projeto)')
     .option('--visual', 'Modo visual', false)
     .option('--from <YYYY.MM.DD>', 'Data inicial')
     .option('--to <YYYY.MM.DD>', 'Data final')
     .option('--project <id>')
     .action(async (opts) => {
-      const symbols = String(opts.symbols).split(',').map((s: string) => s.trim()).filter(Boolean);
-      const periods = String(opts.periods).split(',').map((s: string) => s.trim()).filter(Boolean);
+      const info = await store.useOrThrow(opts.project);
+      const baseSymbol = resolveSymbol(info, opts.symbols);
+      const basePeriod = resolvePeriod(info, opts.periods);
+      const baseExpert = resolveExpertPath(info, opts.expert).replace(/\.ex5$/i, '');
+      const symbols = (opts.symbols ? String(opts.symbols) : baseSymbol).split(',').map((s: string) => s.trim()).filter(Boolean);
+      const periods = (opts.periods ? String(opts.periods) : basePeriod).split(',').map((s: string) => s.trim()).filter(Boolean);
       for (const symbol of symbols) {
         for (const period of periods) {
-          const argsBase = ['--expert', opts.expert, '--symbol', symbol, '--period', period];
+          const argsBase = ['--expert', opts.expert || baseExpert, '--symbol', symbol, '--period', period];
           if (opts.visual) argsBase.push('--visual');
           if (opts.from) argsBase.push('--from', opts.from);
           if (opts.to) argsBase.push('--to', opts.to);

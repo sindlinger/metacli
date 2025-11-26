@@ -1,51 +1,93 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { ProjectStore } from '../config/projectStore.js';
+import fs from 'fs-extra';
+import path from 'path';
+import { ProjectStore, ProjectInfo, repoRoot } from '../config/projectStore.js';
 import { promptYesNo } from '../utils/prompt.js';
 import { deployCommandListener } from '../utils/listenerDeploy.js';
-import { deployFactoryTemplates, deployFactoryConfig, ensureAccountInIni } from '../utils/factoryAssets.js';
-import { restartListenerInstance } from './listener.js';
+import {
+  deployFactoryTemplates,
+  deployFactoryConfig,
+  ensureAccountInIni,
+  ensureCommandListenerStartup,
+} from '../utils/factoryAssets.js';
 import { logProjectSummary } from '../utils/projectSummary.js';
+import { execa } from 'execa';
+import { toWindowsPath } from '../utils/wsl.js';
+import { resolvePowerShell } from '../utils/paths.js';
 
 export function registerProjectCommands(program: Command) {
   const project = program.command('project').description('Gerencia apenas o registro de projetos (mtcli_projects.json)');
 
-  project
-    .command('reset')
-    .description('Reaplica listener/config/templates no projeto atual e reinicia o listener (sem reinstalar terminal)')
-    .option('--id <id>', 'Projeto alvo (default: projeto ativo/last_project)')
-    .action(async (opts) => {
-      const store = new ProjectStore();
-      const current = await store.useOrThrow(opts.id);
-      const file = await store.show();
-      const info = file.projects[current.project];
-      if (!info) {
-        throw new Error(`Projeto "${current.project}" não encontrado em mtcli_projects.json.`);
+  const resolvePaths = (info: ProjectInfo): ProjectInfo => {
+    const baseTerm = process.env.MTCLI_BASE_TERMINAL;
+    const dataEnv = process.env.MTCLI_DATA_DIR;
+    const terminalsDir = process.env.MTCLI_TERMINALS_DIR || path.join(repoRoot(), 'projects', 'terminals');
+    const resolved: ProjectInfo = { ...info };
+    if (!resolved.data_dir) {
+      if (dataEnv) {
+        resolved.data_dir = dataEnv;
+      } else {
+        // fallback padrão: projects/terminals/project-<id>
+        resolved.data_dir = path.join(terminalsDir, `project-${info.project}`);
       }
-
-      if (!info.terminal || !info.metaeditor || !info.data_dir || !info.libs) {
-        throw new Error('Projeto não possui caminhos completos (terminal/metaeditor/data_dir/libs).');
+    }
+    if (!resolved.libs && resolved.data_dir) {
+      resolved.libs = path.join(resolved.data_dir, 'MQL5', 'Libraries');
+    }
+    if (!resolved.terminal) {
+      if (baseTerm) {
+        resolved.terminal = path.join(baseTerm, 'terminal64.exe');
+      } else if (resolved.data_dir) {
+        // terminal e data_dir na mesma pasta (portable)
+        resolved.terminal = path.join(resolved.data_dir, 'terminal64.exe');
       }
+    }
+    if (!resolved.metaeditor) {
+      if (baseTerm) {
+        resolved.metaeditor = path.join(baseTerm, 'metaeditor64.exe');
+      } else if (resolved.data_dir) {
+        resolved.metaeditor = path.join(resolved.data_dir, 'MetaEditor64.exe');
+      }
+    }
+    // se nada informado, assume portable como padrão para cópia em projects/terminals
+    if (!resolved.defaults) resolved.defaults = {};
+    if (resolved.defaults.portable === undefined) {
+      resolved.defaults.portable = true;
+    }
+    return resolved;
+  };
 
-      const install = {
-        terminal: info.terminal,
-        metaeditor: info.metaeditor,
-        dataDir: info.data_dir,
-        libs: info.libs,
-        root: '',
-      };
+  // kill desabilitado a pedido do usuário; mantém função no-code para não afetar a CLI
+  const killTerminalProcesses = async (_info: ProjectInfo) => {
+    console.log(chalk.yellow('[project] kill: desabilitado (não será executado).'));
+  };
 
-      const saved = await store.setProject(current.project, info, true);
+  const ensureProfile = async (dataDir: string, profileName: string) => {
+    const chartsDir = path.join(dataDir, 'Profiles', 'Charts');
+    const defaultDir = path.join(chartsDir, 'Default');
+    const destDir = path.join(chartsDir, profileName);
+    if (await fs.pathExists(destDir)) return;
+    if (await fs.pathExists(defaultDir)) {
+      await fs.copy(defaultDir, destDir);
+      console.log(chalk.gray(`[project] profile: copiado Default -> ${destDir}`));
+    } else {
+      await fs.ensureDir(destDir);
+      console.log(chalk.gray(`[project] profile: criado vazio ${destDir}`));
+    }
+    console.log(chalk.gray(`[project] profile "${profileName}" pronto`));
+  };
 
-      await deployCommandListener(install);
-      await deployFactoryTemplates(install.dataDir);
-      await deployFactoryConfig(install.dataDir);
-      await ensureAccountInIni(install.dataDir);
+  // start desabilitado a pedido do usuário
+  const startTerminal = async (info: ProjectInfo, profileName: string) => {
+    console.log(
+      chalk.yellow(
+        `[project] start: desabilitado. Para iniciar manualmente: start "" ${info.terminal} /portable /datapath:${info.data_dir} /profile:${profileName}`
+      )
+    );
+  };
 
-      await restartListenerInstance({ project: saved.project, profile: saved.defaults?.profile ?? undefined });
-      await logProjectSummary(saved);
-      console.log(chalk.green(`Projeto ${saved.project} resetado.`));
-    });
+  // reload/remove reset desabilitados a pedido do usuário
 
   project
     .command('remove')
